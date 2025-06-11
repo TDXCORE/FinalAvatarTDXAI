@@ -17,7 +17,7 @@ export function useLLM({ onResponse }: UseLLMProps) {
       onResponse(response);
     } catch (error) {
       console.error('LLM processing failed:', error);
-      onResponse('I apologize, but I encountered an error processing your message. Please try again.');
+      onResponse('Disculpa, encontré un error al procesar tu mensaje. Por favor intenta de nuevo.');
     }
   }, [onResponse]);
 

@@ -104,10 +104,10 @@ export default function ConversationalAvatar() {
       try {
         const config = await loadApiConfig();
         setApiConfig(config);
-        addConversationMessage('system', 'Welcome! Click "Connect" to start your conversation with Alex.');
+        addConversationMessage('system', '¡Bienvenido! Haz clic en "Connect" para iniciar tu conversación con Alex.');
       } catch (error) {
         console.error('Failed to load API configuration:', error);
-        addConversationMessage('system', 'Error: Please configure your API keys in the api.json file.');
+        addConversationMessage('system', 'Error: Por favor configura tus claves API en el archivo .env.');
       }
     };
 
@@ -153,7 +153,7 @@ export default function ConversationalAvatar() {
     const messages = [
       {
         role: 'system' as const,
-        content: 'You are Alex, a helpful AI assistant. Keep responses concise and natural for voice conversation. Limit to 2-3 sentences.'
+        content: 'Eres Alex, un asistente de IA útil. Mantén las respuestas concisas y naturales para conversación por voz. Limita a 2-3 oraciones. Responde siempre en español.'
       },
       ...conversationHistory
         .filter(msg => msg.role !== 'system')
@@ -168,17 +168,17 @@ export default function ConversationalAvatar() {
 
   const handleConnect = async () => {
     if (!apiConfig) {
-      addConversationMessage('system', 'Error: API configuration not loaded');
+      addConversationMessage('system', 'Error: Configuración de API no cargada');
       return;
     }
 
     try {
       await connectWebRTC(apiConfig);
       setIsConnected(true);
-      addConversationMessage('system', 'Connected to AI assistant. You can now start a conversation.');
+      addConversationMessage('system', 'Conectado al asistente AI. Ahora puedes iniciar una conversación.');
     } catch (error) {
       console.error('Connection failed:', error);
-      addConversationMessage('system', 'Error: Failed to connect to AI service. Please check your API configuration.');
+      addConversationMessage('system', 'Error: No se pudo conectar al servicio AI. Verifica tu configuración de API.');
     }
   };
 
@@ -189,13 +189,13 @@ export default function ConversationalAvatar() {
         const vadStarted = await startVAD();
         if (vadStarted) {
           setIsRecording(true);
-          addConversationMessage('system', 'Voice detection active. Alex will respond automatically when you pause speaking.');
+          addConversationMessage('system', 'Detección de voz activa. Alex responderá automáticamente cuando hagas una pausa al hablar.');
         } else {
           throw new Error('Failed to start voice detection');
         }
       } catch (error) {
         console.error('Failed to start conversation:', error);
-        addConversationMessage('system', 'Error: Could not access microphone. Please check permissions.');
+        addConversationMessage('system', 'Error: No se pudo acceder al micrófono. Verifica los permisos.');
       }
     } else {
       stopVAD();
