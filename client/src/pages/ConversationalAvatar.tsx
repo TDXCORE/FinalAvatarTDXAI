@@ -150,6 +150,7 @@ export default function ConversationalAvatar() {
     setLatencyStart(Date.now());
     addConversationMessage('user', userMessage);
     
+    // Build messages with current history plus new user message
     const messages = [
       {
         role: 'system' as const,
@@ -160,7 +161,11 @@ export default function ConversationalAvatar() {
         .map(msg => ({
           role: msg.role,
           content: msg.content
-        }))
+        })),
+      {
+        role: 'user' as const,
+        content: userMessage
+      }
     ];
 
     await sendToLLM(messages);
