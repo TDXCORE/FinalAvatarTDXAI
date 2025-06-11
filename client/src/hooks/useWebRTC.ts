@@ -362,7 +362,7 @@ export function useWebRTC() {
           input: text,
           provider: {
             type: 'elevenlabs',
-            voice_id: '21m00Tcm4TlvDq8ikWAM'
+            voice_id: 'ucWwAruuGtBeHfnAaKcJ'
           },
           ssml: true
         },

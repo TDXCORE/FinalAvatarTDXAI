@@ -207,6 +207,7 @@ export default function ConversationalAvatar() {
   const handleDisconnect = () => {
     disconnectWebRTC();
     stopRecording();
+    stopVAD();
     setIsConnected(false);
     setIsRecording(false);
     setCurrentTranscription('');

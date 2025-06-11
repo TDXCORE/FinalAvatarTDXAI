@@ -59,7 +59,7 @@ export default function ControlPanel({
           }`}
         >
           {isRecording ? <MicOff className="w-4 h-4 mr-2" /> : <Mic className="w-4 h-4 mr-2" />}
-          {isRecording ? 'Stop' : 'Talk'}
+          {isRecording ? 'Stop Voice Detection' : 'Start Conversation'}
         </Button>
 
         {/* Test Pipeline Button */}
