@@ -1,0 +1,27 @@
+export async function connectToWebSocket(url: string, apiKey: string): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${url}?token=${apiKey}`);
+    
+    ws.onopen = () => {
+      console.log('D-ID WebSocket connected');
+      resolve(ws);
+    };
+    
+    ws.onerror = (error) => {
+      console.error('D-ID WebSocket error:', error);
+      reject(error);
+    };
+    
+    ws.onclose = () => {
+      console.log('D-ID WebSocket closed');
+    };
+  });
+}
+
+export function sendMessage(ws: WebSocket | null, message: any) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(message));
+  } else {
+    console.error('WebSocket not ready for message:', message);
+  }
+}

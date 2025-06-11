@@ -1,0 +1,7 @@
+{
+  "key": "🤫",
+  "url": "https://api.d-id.com",
+  "websocketUrl": "wss://ws-api.d-id.com",
+  "service": "clips",
+  "elevenlabsKey": ""
+}

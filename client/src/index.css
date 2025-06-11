@@ -1,0 +1,217 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+
+  /* Custom colors for dark theme */
+  --dark-slate: hsl(222, 84%, 5%);
+  --slate-800: hsl(217, 33%, 17%);
+  --slate-700: hsl(215, 25%, 27%);
+  --slate-600: hsl(215, 20%, 35%);
+  --slate-400: hsl(215, 16%, 65%);
+  --slate-200: hsl(210, 40%, 92%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom styles for the avatar application */
+.font-inter {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.bg-dark-slate {
+  background-color: var(--dark-slate);
+}
+
+.bg-slate-800 {
+  background-color: var(--slate-800);
+}
+
+.bg-slate-700 {
+  background-color: var(--slate-700);
+}
+
+.bg-slate-600 {
+  background-color: var(--slate-600);
+}
+
+.text-slate-400 {
+  color: var(--slate-400);
+}
+
+.text-slate-200 {
+  color: var(--slate-200);
+}
+
+.border-slate-700 {
+  border-color: var(--slate-700);
+}
+
+.border-slate-600 {
+  border-color: var(--slate-600);
+}
+
+/* WebRTC Status Classes */
+.peerConnectionState-new { color: hsl(217, 91%, 60%); }
+.peerConnectionState-connecting { color: hsl(43, 96%, 56%); }
+.peerConnectionState-connected { color: hsl(142, 76%, 36%); }
+.peerConnectionState-disconnected,
+.peerConnectionState-closed,
+.peerConnectionState-failed { color: hsl(0, 84%, 60%); }
+
+.iceConnectionState-new { color: hsl(217, 91%, 60%); }
+.iceConnectionState-checking { color: hsl(43, 96%, 56%); }
+.iceConnectionState-connected,
+.iceConnectionState-completed { color: hsl(142, 76%, 36%); }
+.iceConnectionState-disconnected,
+.iceConnectionState-closed,
+.iceConnectionState-failed { color: hsl(0, 84%, 60%); }
+
+.iceGatheringState-new { color: hsl(217, 91%, 60%); }
+.iceGatheringState-gathering { color: hsl(43, 96%, 56%); }
+.iceGatheringState-complete { color: hsl(215, 25%, 27%); }
+
+.signalingState-stable { color: hsl(142, 76%, 36%); }
+.signalingState-have-local-offer,
+.signalingState-have-remote-offer,
+.signalingState-have-local-pranswer,
+.signalingState-have-remote-pranswer { color: hsl(217, 91%, 60%); }
+.signalingState-closed { color: hsl(0, 84%, 60%); }
+
+.streamingState-streaming { color: hsl(142, 76%, 36%); }
+.streamingState-empty { color: hsl(215, 25%, 27%); }
+
+.streamEvent-started { color: hsl(142, 76%, 36%); }
+.streamEvent-done { color: hsl(43, 96%, 56%); }
+.streamEvent-ready { color: hsl(142, 76%, 36%); }
+.streamEvent-error { color: hsl(0, 84%, 60%); }
+.streamEvent-dont-care { color: hsl(215, 25%, 27%); }
+
+/* Animation for video transitions */
+.animated {
+  animation: fadeInScale 1s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Pulse animation for recording */
+.recording-pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Custom scrollbar for conversation */
+.conversation-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.conversation-scroll::-webkit-scrollbar-track {
+  background: var(--slate-800);
+}
+.conversation-scroll::-webkit-scrollbar-thumb {
+  background: var(--slate-600);
+  border-radius: 2px;
+}
+
+/* Microphone visualizer bars */
+.mic-bar {
+  width: 3px;
+  background: hsl(217, 91%, 60%);
+  animation: micPulse 1.5s ease-in-out infinite;
+  margin: 0 1px;
+}
+
+.mic-bar:nth-child(1) { height: 10px; animation-delay: 0s; }
+.mic-bar:nth-child(2) { height: 15px; animation-delay: 0.1s; }
+.mic-bar:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+.mic-bar:nth-child(4) { height: 15px; animation-delay: 0.3s; }
+.mic-bar:nth-child(5) { height: 10px; animation-delay: 0.4s; }
+
+@keyframes micPulse {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+/* Animate in utility */
+.animate-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
