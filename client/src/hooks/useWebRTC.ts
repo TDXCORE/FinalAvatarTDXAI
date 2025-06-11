@@ -92,10 +92,42 @@ export function useWebRTC() {
     let status = videoIsPlaying ? 'streaming' : 'empty';
     
     if (videoIsPlaying && stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.muted = false;
-      if (videoRef.current.paused) {
-        videoRef.current.play().catch(e => console.log('Video play failed:', e));
+      const video = videoRef.current;
+      
+      // Avoid interrupting existing playback
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+      
+      video.muted = false;
+      video.playsInline = true;
+      video.autoplay = true;
+      
+      // Use a more robust play mechanism
+      const playVideo = async () => {
+        try {
+          if (video.paused && video.readyState >= 2) {
+            await video.play();
+          }
+        } catch (error: any) {
+          if (error.name !== 'AbortError') {
+            console.log('Video play failed:', error);
+          }
+          // Retry after a short delay for non-abort errors
+          if (error.name !== 'AbortError') {
+            setTimeout(() => {
+              if (video.paused) {
+                video.play().catch(() => {});
+              }
+            }, 100);
+          }
+        }
+      };
+      
+      if (video.readyState >= 2) {
+        playVideo();
+      } else {
+        video.addEventListener('loadeddata', playVideo, { once: true });
       }
     }
 
