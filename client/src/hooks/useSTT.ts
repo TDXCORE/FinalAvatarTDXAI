@@ -90,7 +90,7 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       formData.append('file', audioBlob, 'audio.webm');
       formData.append('model', 'whisper-large-v3');
       formData.append('response_format', 'json');
-      formData.append('language', 'en');
+      formData.append('language', 'es');
 
       const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',

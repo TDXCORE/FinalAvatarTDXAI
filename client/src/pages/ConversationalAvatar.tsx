@@ -6,7 +6,8 @@ import ControlPanel from "@/components/ControlPanel";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSTT } from "@/hooks/useSTT";
 import { useLLM } from "@/hooks/useLLM";
-import { loadApiConfig } from "@/lib/config";
+import { useVoiceActivityDetection } from "@/hooks/useVoiceActivityDetection";
+import { loadApiConfig, CONFIG } from "@/lib/config";
 
 export default function ConversationalAvatar() {
   const [isConnected, setIsConnected] = useState(false);
@@ -57,6 +58,44 @@ export default function ConversationalAvatar() {
       if (apiConfig) {
         sendStreamText(response);
       }
+    }
+  });
+
+  // Voice Activity Detection for automatic conversation flow
+  const { startVAD, stopVAD } = useVoiceActivityDetection({
+    onSpeechEnd: async (audioBlob) => {
+      console.log(`📦 Processing voice input: ${audioBlob.size} bytes`);
+      
+      // Process audio with Groq STT
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('model', 'whisper-large-v3');
+      formData.append('language', 'es');
+      formData.append('response_format', 'json');
+
+      try {
+        const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
+        const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqApiKey}`,
+          },
+          body: formData
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.text && data.text.trim()) {
+            console.log('🎯 Voice transcription:', data.text);
+            processUserMessage(data.text);
+          }
+        }
+      } catch (error) {
+        console.error('Voice processing failed:', error);
+      }
+    },
+    onSpeechStart: () => {
+      console.log('🎤 Voice detected, listening...');
     }
   });
 
@@ -146,16 +185,22 @@ export default function ConversationalAvatar() {
   const handleStartConversation = async () => {
     if (!isRecording) {
       try {
-        await startRecording();
-        setIsRecording(true);
-        addConversationMessage('system', 'Listening... You can now speak to Alex.');
+        // Start Voice Activity Detection instead of manual recording
+        const vadStarted = await startVAD();
+        if (vadStarted) {
+          setIsRecording(true);
+          addConversationMessage('system', 'Voice detection active. Alex will respond automatically when you pause speaking.');
+        } else {
+          throw new Error('Failed to start voice detection');
+        }
       } catch (error) {
-        console.error('Failed to start recording:', error);
+        console.error('Failed to start conversation:', error);
         addConversationMessage('system', 'Error: Could not access microphone. Please check permissions.');
       }
     } else {
-      stopRecording();
+      stopVAD();
       setIsRecording(false);
+      addConversationMessage('system', 'Voice detection stopped.');
     }
   };
 

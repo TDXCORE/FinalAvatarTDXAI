@@ -59,6 +59,10 @@ export const CONFIG = {
     bufferSize: 20 // ms
   },
   ELEVENLABS: {
-    voiceId: '21m00Tcm4TlvDq8ikWAM'
+    voiceId: 'ucWwAruuGtBeHfnAaKcJ'
+  },
+  SPEECH: {
+    silenceDetectionMs: 800,
+    language: 'es'
   }
 };
