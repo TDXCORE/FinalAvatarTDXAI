@@ -13,7 +13,7 @@ interface Message {
 export function useLLM({ onResponse }: UseLLMProps) {
   const sendMessage = useCallback(async (messages: Message[]) => {
     try {
-      const response = await sendToGroqLLM(messages, 'llama-3.1-70b-versatile');
+      const response = await sendToGroqLLM(messages, 'llama-3.3-70b-versatile');
       onResponse(response);
     } catch (error) {
       console.error('LLM processing failed:', error);
