@@ -1,7 +1,7 @@
 {
-  "key": "🤫",
+  "key": "TU_D_ID_API_KEY_AQUI",
   "url": "https://api.d-id.com",
   "websocketUrl": "wss://ws-api.d-id.com",
   "service": "clips",
-  "elevenlabsKey": ""
+  "elevenlabsKey": "TU_ELEVENLABS_API_KEY_AQUI"
 }

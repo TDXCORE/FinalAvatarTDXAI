@@ -8,6 +8,22 @@ export interface ApiConfig {
 
 export async function loadApiConfig(): Promise<ApiConfig> {
   try {
+    // Try environment variables first
+    const didKey = import.meta.env.VITE_DID_API_KEY;
+    const groqKey = import.meta.env.VITE_GROQ_API_KEY;
+    const elevenlabsKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
+    
+    if (didKey && didKey !== 'your_d_id_api_key_here') {
+      return {
+        key: didKey,
+        url: 'https://api.d-id.com',
+        websocketUrl: 'wss://ws-api.d-id.com',
+        service: 'clips',
+        elevenlabsKey: elevenlabsKey || ''
+      };
+    }
+    
+    // Fallback to api.json file
     const response = await fetch('/api.json');
     if (!response.ok) {
       throw new Error('Failed to load API configuration');
@@ -15,8 +31,8 @@ export async function loadApiConfig(): Promise<ApiConfig> {
     
     const config = await response.json();
     
-    if (config.key === '🤫') {
-      throw new Error('Please configure your API keys in api.json');
+    if (config.key === '🤫' || config.key === 'TU_D_ID_API_KEY_AQUI') {
+      throw new Error('Please configure your API keys in .env file or api.json');
     }
     
     return {
