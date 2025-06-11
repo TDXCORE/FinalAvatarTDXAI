@@ -115,6 +115,7 @@ export function useAudioTest() {
       const formData = new FormData();
       formData.append('file', audioBlob, 'audio.webm');
       formData.append('model', 'whisper-large-v3');
+      formData.append('language', 'es');
       formData.append('response_format', 'json');
       
       console.log('📡 Sending to Groq STT...');
@@ -156,7 +157,7 @@ export function useAudioTest() {
       const messages = [
         {
           role: 'system',
-          content: 'You are Alex, a helpful AI assistant. Keep responses concise and natural for voice conversation. Limit to 2-3 sentences.'
+          content: 'Eres Alex, un asistente de IA útil. Mantén las respuestas concisas y naturales para conversación por voz. Limita a 2-3 oraciones. Responde siempre en español.'
         },
         {
           role: 'user',

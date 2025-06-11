@@ -200,7 +200,7 @@ export default function ConversationalAvatar() {
     } else {
       stopVAD();
       setIsRecording(false);
-      addConversationMessage('system', 'Voice detection stopped.');
+      addConversationMessage('system', 'Detección de voz detenida.');
     }
   };
 
@@ -213,7 +213,7 @@ export default function ConversationalAvatar() {
     setCurrentTranscription('');
     setConversationHistory([]);
     setLatency(null);
-    addConversationMessage('system', 'Disconnected from AI assistant.');
+    addConversationMessage('system', 'Desconectado del asistente AI.');
   };
 
   const handleManualSend = (message: string) => {
