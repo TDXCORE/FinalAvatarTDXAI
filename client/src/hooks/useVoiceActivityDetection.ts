@@ -15,9 +15,10 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSpeakingRef = useRef(false);
   const isRecordingRef = useRef(false);
+  const isActiveRef = useRef(false);
 
   const detectVoiceActivity = useCallback(() => {
-    if (!analyserRef.current) return;
+    if (!analyserRef.current || !isActiveRef.current) return;
 
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -41,7 +42,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       }
 
       // Start recording if not already recording
-      if (!isRecordingRef.current && mediaRecorderRef.current) {
+      if (!isRecordingRef.current && mediaRecorderRef.current && isActiveRef.current) {
         recordingChunksRef.current = [];
         mediaRecorderRef.current.start();
         isRecordingRef.current = true;
@@ -57,16 +58,16 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
         // Speech ended after silence threshold
         isSpeakingRef.current = false;
         
-        if (isRecordingRef.current && mediaRecorderRef.current) {
+        if (isRecordingRef.current && mediaRecorderRef.current && isActiveRef.current) {
           mediaRecorderRef.current.stop();
           isRecordingRef.current = false;
-          console.log('🔇 Silence detected - stopped recording');
+          console.log('🔇 Silence detected - processing audio');
         }
       }, CONFIG.SPEECH.silenceDetectionMs);
     }
 
-    // Continue monitoring
-    if (streamRef.current) {
+    // Continue monitoring while active
+    if (isActiveRef.current) {
       requestAnimationFrame(detectVoiceActivity);
     }
   }, [onSpeechEnd, onSpeechStart]);
@@ -112,11 +113,22 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
           onSpeechEnd(audioBlob);
         }
         recordingChunksRef.current = [];
+        
+        // Prepare for next recording segment if still active
+        if (isActiveRef.current && mediaRecorderRef.current) {
+          setTimeout(() => {
+            if (isActiveRef.current && !isRecordingRef.current) {
+              // Ready for next voice detection cycle
+              console.log('🔄 Ready for next voice input');
+            }
+          }, 100);
+        }
       };
 
       mediaRecorderRef.current = mediaRecorder;
 
-      // Start voice activity detection
+      // Set as active and start voice activity detection
+      isActiveRef.current = true;
       detectVoiceActivity();
 
       console.log('🎧 Voice Activity Detection started');
@@ -128,6 +140,9 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
   }, [detectVoiceActivity, onSpeechEnd]);
 
   const stopVAD = useCallback(() => {
+    // Mark as inactive first to stop the detection loop
+    isActiveRef.current = false;
+    
     // Clear timeouts
     if (silenceTimeoutRef.current) {
       clearTimeout(silenceTimeoutRef.current);
@@ -161,6 +176,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
   return {
     startVAD,
     stopVAD,
-    isSpeaking: isSpeakingRef.current
+    isSpeaking: isSpeakingRef.current,
+    isActive: isActiveRef.current
   };
 }
