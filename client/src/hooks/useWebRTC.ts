@@ -249,6 +249,7 @@ export function useWebRTC() {
             const { id: newStreamId, offer, ice_servers: iceServers, session_id: newSessionId } = data;
             setStreamId(newStreamId);
             setSessionId(newSessionId);
+            console.log('D-ID stream initialized:', newStreamId, newSessionId);
             
             try {
               const sessionClientAnswer = await createPeerConnection(offer, iceServers);
@@ -262,6 +263,7 @@ export function useWebRTC() {
                 }
               };
               sendMessage(ws, sdpMessage);
+              console.log('SDP answer sent to D-ID');
             } catch (e) {
               console.error('Error during streaming setup', e);
               stopAllStreams();
@@ -270,11 +272,11 @@ export function useWebRTC() {
             break;
 
           case 'sdp':
-            console.log('SDP message received');
+            console.log('SDP message received from D-ID');
             break;
 
           case 'delete-stream':
-            console.log('Stream deleted');
+            console.log('Stream deleted from D-ID');
             break;
         }
       };

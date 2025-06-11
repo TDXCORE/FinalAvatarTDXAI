@@ -244,14 +244,44 @@ export function useAudioTest() {
     console.log('🚀 Starting full pipeline test...');
     console.log('================================');
     
-    const audioOk = await testAudioDetection();
-    if (!audioOk) return;
-    
-    setTimeout(() => {
-      console.log('⏰ Please speak for 3 seconds when recording starts...');
-      testSTTFlow();
-    }, 2000);
-  }, [testAudioDetection, testSTTFlow]);
+    try {
+      // Step 1: Test microphone access
+      console.log('1️⃣ Testing microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('✅ Microphone access granted');
+      
+      // Step 2: Test audio recording
+      console.log('2️⃣ Starting 3-second recording...');
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks: Blob[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+        console.log(`📦 Audio chunk: ${event.data.size} bytes`);
+      };
+      
+      mediaRecorder.onstop = async () => {
+        console.log('3️⃣ Processing recorded audio...');
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        console.log(`🎵 Total audio: ${audioBlob.size} bytes`);
+        
+        // Step 3: Test STT
+        await testGroqSTT(audioBlob);
+      };
+      
+      mediaRecorder.start();
+      
+      setTimeout(() => {
+        mediaRecorder.stop();
+        stream.getTracks().forEach(track => track.stop());
+      }, 3000);
+      
+      console.log('🎤 Recording for 3 seconds... Please speak now!');
+      
+    } catch (error) {
+      console.error('❌ Test failed:', error);
+    }
+  }, [testGroqSTT]);
 
   const cleanup = useCallback(() => {
     if (streamRef.current) {
