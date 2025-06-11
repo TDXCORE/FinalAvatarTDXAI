@@ -1,6 +1,8 @@
 export async function connectToWebSocket(url: string, apiKey: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${url}?token=${apiKey}`);
+    // D-ID WebSocket connection with authorization
+    const wsUrl = `${url}?authorization=Basic+${btoa(apiKey + ':')}`;
+    const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
       console.log('D-ID WebSocket connected');
