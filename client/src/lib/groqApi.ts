@@ -20,9 +20,15 @@ export async function connectToGroqSTT(model: string = 'whisper-large-v3'): Prom
   });
 }
 
-export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3-70b-8192') {
+export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.1-70b-versatile') {
   try {
-    const response = await fetch('https://api.groq.com/v1/chat/completions', {
+    if (!GROQ_API_KEY) {
+      throw new Error('GROQ API key not configured');
+    }
+
+    console.log('Groq LLM Request:', { model, messages });
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
@@ -36,11 +42,16 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
       })
     });
 
+    console.log('Groq LLM Response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`Groq API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Groq LLM API error response:', errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Groq LLM Response data:', data);
     return data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
   } catch (error) {
     console.error('Groq LLM API error:', error);

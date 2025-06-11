@@ -201,38 +201,14 @@ export function useAudioTest() {
     console.log('🗣️ Testing D-ID TTS flow...');
     
     try {
-      const didApiKey = import.meta.env.VITE_DID_API_KEY;
-      if (!didApiKey) {
-        console.error('❌ D-ID API key not found');
-        return;
-      }
-      
       console.log('📡 Sending text to D-ID for TTS...');
       console.log('Text to speak:', text);
       
-      // Simulate sending to existing D-ID stream
-      const streamMessage = {
-        type: 'stream-text',
-        payload: {
-          script: {
-            type: 'text',
-            input: text,
-            provider: {
-              type: 'elevenlabs',
-              voice_id: '21m00Tcm4TlvDq8ikWAM'
-            },
-            ssml: true
-          },
-          config: {
-            stitch: true
-          },
-          background: {
-            color: '#FFFFFF'
-          }
-        }
-      };
+      // Send to actual D-ID WebSocket if available
+      const sendStreamTextEvent = new CustomEvent('sendStreamText', { detail: text });
+      window.dispatchEvent(sendStreamTextEvent);
       
-      console.log('✅ D-ID message prepared:', streamMessage);
+      console.log('✅ Text sent to D-ID via custom event');
       console.log('🎬 Avatar should now speak the response!');
       
     } catch (error) {

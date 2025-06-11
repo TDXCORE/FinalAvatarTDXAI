@@ -72,8 +72,20 @@ export default function ConversationalAvatar() {
       }
     };
 
+    // Listen for custom events from test script
+    const handleSendStreamText = (event: any) => {
+      if (apiConfig) {
+        sendStreamText(event.detail);
+      }
+    };
+
+    window.addEventListener('sendStreamText', handleSendStreamText);
     initializeApp();
-  }, []);
+
+    return () => {
+      window.removeEventListener('sendStreamText', handleSendStreamText);
+    };
+  }, [apiConfig, sendStreamText]);
 
   const addConversationMessage = (role: 'user' | 'assistant' | 'system', content: string) => {
     const message = {
