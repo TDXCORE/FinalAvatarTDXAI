@@ -1,0 +1,121 @@
+PRD – Conversational Avatar Alex (D‑ID)
+
+Versión: 1.0 — 11 jun 2025Autor: Equipo TDX / Freddy RinconesObjetivo: Diseñar e implementar una aplicación web de conversación en tiempo real con el avatar Alex, reutilizando la lógica original del repositorio live‑streaming‑demo y añadiendo un pipeline STT → LLM → TTS basado en Groq y ElevenLabs, optimizando el consumo de créditos de D‑ID con el modo clips/stream.
+
+1. Visión
+
+Lograr que el usuario hable con Alex de forma natural: la voz del usuario se transcribe (Groq Whisper), la transcripción pasa a un LLM (Groq Llama 70B) para generar la respuesta y esta respuesta es enviada a D‑ID como texto que el servicio convierte en vídeo sincronizado (labios + voz ElevenLabs) con el avatar. Todo dentro de una única sesión stream para usar ≤ 1 crédito D‑ID por conversación.
+
+Mic  ──▶  Groq Whisper‑v3  ──▶  Groq Llama‑70B  ──▶  D‑ID clips/stream + ElevenLabs TTS  ──▶  WebRTC Video
+
+Meta de latencia E2E ≤ 800 ms (p95).
+
+2. Alcance Funcional
+
+ID
+
+Módulo
+
+Descripción
+
+F‑1
+
+Conexión inicial
+
+Click Connect: solicita getUserMedia para micrófono → crea RTCPeerConnection + WebSocket a D‑ID.
+
+F‑2
+
+STT Groq
+
+Streaming continuo a whisper-large-v3 con chunks PCM 16 kHz/20 ms. Devuelve parciales y finales.
+
+F‑3
+
+LLM Groq
+
+Solicitud chat.completions con modelo llama-3-70b-instr, manteniendo historial corto (<12 turns) para coherencia.
+
+F‑4
+
+Orquestador TTS + D‑ID
+
+Empaqueta la respuesta LLM en mensajes stream-text a la API clips/stream; incluye provider.voice_id = ELEVEN_VOICE_ID. Reutiliza stream_id para ilimitados mensajes.
+
+F‑5
+
+UI Avatar
+
+Dos <video> (idle-video-element, stream-video-element) y lógica onTrack, onVideoStatusChange idéntica a index‑ws.html.
+
+F‑6
+
+Eficiencia de Créditos
+
+Una sesión clips/stream = 1 crédito; la app no crea nuevos streams hasta que el usuario cuelga.
+
+3. Arquitectura de Componentes
+
+flowchart LR
+  subgraph Browser
+    Mic[Usuario: Mic] -->|PCM 16k| STTWS(WebSocket STT\nGroq Whisper)
+    STTWS -->|Texto| LLM(HTTPS\nGroq Llama 70B)
+    LLM -->|Respuesta| Orchestrator(JS)
+    Orchestrator -->|stream-text WS| DIDWS(D‑ID clips/stream)
+    DIDWS -->|WebRTC| Video(Video Element)
+  end
+  Orchestrator -->|REST| ElevenLabs[(ElevenLabs TTS)]
+
+El Orchestrator está en el navegador (JS) y gestiona las tres conexiones WebSocket/HTTP.
+
+stream_id y session_id se almacenan en memory para re‑uso.
+
+4. Flujos Detallados
+
+4.1 Mic → Groq Whisper
+
+const sttWS = new WebSocket("wss://api.groq.com/v1/speech:stream?model=" + STT_MODEL);
+mediaRecorder.ondataavailable = e => sttWS.send(e.data);
+sttWS.onmessage = ({data}) => handleTranscription(JSON.parse(data));
+
+Buffer: 20 ms.
+
+Cuando se recibe is_final === true → se envía a LLM.
+
+4.2 STT Final → Groq LLM
+
+const completion = await fetch("https://api.groq.com/v1/chat/completions", {
+  method:"POST",
+  headers:{"Authorization":"Bearer " + GROQ_API_KEY, "Content-Type":"application/json"},
+  body: JSON.stringify({
+    model: LLM_MODEL,
+    messages: history.concat({role:"user", content:text})
+  })
+}).then(r=>r.json());
+
+4.3 LLM → D‑ID clips/stream (TTS ElevenLabs)
+
+function sendStreamText(text,index){
+  sendMessage(didWS, {
+    type:"stream-text",
+    payload:{
+      script:{
+        type:"text",
+        input:text,
+        provider:{ type:"microsoft", voice_id: ELEVEN_VOICE_ID },
+        ssml:true
+      },
+      session_id,
+      stream_id,
+      presenter_type:"clip"
+    }
+  });
+}
+
+Si stream_id es null: se envía un mensaje inicial sin stream_id; D‑ID responde con stream/started stream_id:xxxx que se guarda.
+
+4.4 Front‑end Video Handling (sin cambios)
+
+onTrack, onVideoStatusChange, playIdleVideo, stopAllStreams se copian 1‑a‑1 de streaming-client-api-ws.js para garantizar la misma UX.
+
+5. Variables de Entorno
