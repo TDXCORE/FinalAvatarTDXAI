@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Zap, Mic, MicOff, X } from "lucide-react";
+import { Zap, Mic, MicOff, X, TestTube } from "lucide-react";
+import { useAudioTest } from "@/hooks/useAudioTest";
 
 interface ControlPanelProps {
   isConnected: boolean;
@@ -32,17 +33,18 @@ export default function ControlPanel({
   onStartConversation,
   onDisconnect
 }: ControlPanelProps) {
+  const { runFullTest } = useAudioTest();
 
   return (
     <div className="bg-slate-800/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-700">
-      <div className="flex justify-center space-x-4 mb-6">
+      <div className="flex justify-center space-x-3 mb-6">
         {/* Connect Button */}
         <Button 
           onClick={onConnect}
           disabled={isConnected}
-          className="bg-blue-600 hover:bg-blue-700 px-8 py-3 font-medium shadow-lg hover:shadow-xl"
+          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 font-medium shadow-lg hover:shadow-xl"
         >
-          <Zap className="w-5 h-5 mr-2" />
+          <Zap className="w-4 h-4 mr-2" />
           Connect
         </Button>
 
@@ -50,22 +52,32 @@ export default function ControlPanel({
         <Button 
           onClick={onStartConversation}
           disabled={!isConnected}
-          className={`px-8 py-3 font-medium shadow-lg hover:shadow-xl ${
+          className={`px-6 py-3 font-medium shadow-lg hover:shadow-xl ${
             isRecording 
               ? 'bg-red-600 hover:bg-red-700' 
               : 'bg-green-600 hover:bg-green-700'
           }`}
         >
-          {isRecording ? <MicOff className="w-5 h-5 mr-2" /> : <Mic className="w-5 h-5 mr-2" />}
-          {isRecording ? 'Stop Conversation' : 'Start Conversation'}
+          {isRecording ? <MicOff className="w-4 h-4 mr-2" /> : <Mic className="w-4 h-4 mr-2" />}
+          {isRecording ? 'Stop' : 'Talk'}
+        </Button>
+
+        {/* Test Pipeline Button */}
+        <Button 
+          onClick={runFullTest}
+          className="bg-purple-600 hover:bg-purple-700 px-6 py-3 font-medium shadow-lg hover:shadow-xl"
+          title="Test complete audio pipeline"
+        >
+          <TestTube className="w-4 h-4 mr-2" />
+          Test
         </Button>
 
         {/* Disconnect Button */}
         <Button 
           onClick={onDisconnect}
-          className="bg-red-600 hover:bg-red-700 px-8 py-3 font-medium shadow-lg hover:shadow-xl"
+          className="bg-red-600 hover:bg-red-700 px-6 py-3 font-medium shadow-lg hover:shadow-xl"
         >
-          <X className="w-5 h-5 mr-2" />
+          <X className="w-4 h-4 mr-2" />
           Disconnect
         </Button>
       </div>

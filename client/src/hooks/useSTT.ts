@@ -126,7 +126,7 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     // Reset audio chunks
     audioChunksRef.current = [];
 
-    // Create MediaRecorder
+    // Create MediaRecorder with better settings for STT
     const options = { mimeType: 'audio/webm;codecs=opus' };
     const mediaRecorder = new MediaRecorder(audioStreamRef.current, options);
     mediaRecorderRef.current = mediaRecorder;
@@ -134,15 +134,20 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         audioChunksRef.current.push(event.data);
+        console.log(`Audio chunk: ${event.data.size} bytes`);
       }
     };
 
     mediaRecorder.onstop = () => {
+      console.log('Processing recorded audio...');
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      console.log(`Total audio size: ${audioBlob.size} bytes`);
       processAudioWithGroq(audioBlob);
     };
 
-    mediaRecorder.start(1000); // Collect audio every 1 second
+    // Start recording with continuous chunks
+    console.log('Starting STT recording...');
+    mediaRecorder.start(500); // More frequent chunks for better responsiveness
     setConnectionStatus('recording');
   }, [isInitialized, initializeAudio, processAudioWithGroq]);
 

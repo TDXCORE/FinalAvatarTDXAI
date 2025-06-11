@@ -318,6 +318,8 @@ export function useWebRTC() {
       return;
     }
 
+    console.log('Sending text to D-ID avatar:', text);
+
     const streamMessage = {
       type: 'stream-text',
       payload: {
@@ -343,6 +345,7 @@ export function useWebRTC() {
     };
 
     sendMessage(webSocketRef.current, streamMessage);
+    console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
   return {
