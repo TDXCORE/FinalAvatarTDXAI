@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import AvatarVideo from "@/components/AvatarVideo";
 import ConversationPanel from "@/components/ConversationPanel";
@@ -23,6 +23,15 @@ export default function ConversationalAvatar() {
   const [latency, setLatency] = useState<number | null>(null);
   const [apiConfig, setApiConfig] = useState<any>(null);
   const [latencyStart, setLatencyStart] = useState<number | null>(null);
+  const [pipelineState, setPipelineState] = useState<'idle' | 'processing'>('idle');
+  
+  // Abort controllers and refs for cleanup
+  const abortRef = useRef<() => void>(() => {});
+  const didAbortController = useRef<AbortController | null>(null);
+  const llmAbortController = useRef<AbortController | null>(null);
+  const sttAbortController = useRef<AbortController | null>(null);
+  const turnId = useRef(0);
+  const thinkingTimer = useRef<NodeJS.Timeout | null>(null);
   const {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
@@ -55,12 +64,54 @@ export default function ConversationalAvatar() {
     }
   });
 
+  // Centralized abort function - the "red button"
+  const abortTurn = useCallback(() => {
+    console.log('🛑 ABORT TURN - Stopping all processes');
+    
+    // 1. D-ID video/stream
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      videoRef.current.style.opacity = '0';
+    }
+    if (idleVideoRef.current) {
+      idleVideoRef.current.style.opacity = '1';
+    }
+    didAbortController.current?.abort();
+    
+    // 2. LLM stream
+    llmAbortController.current?.abort();
+    
+    // 3. STT stream  
+    sttAbortController.current?.abort();
+    
+    // 4. Timers and state cleanup
+    if (thinkingTimer.current) {
+      clearTimeout(thinkingTimer.current);
+      thinkingTimer.current = null;
+    }
+    
+    setIsAvatarTalking(false);
+    setPipelineState('idle');
+    turnId.current += 1; // Invalidate old callbacks
+    
+    console.log('🛑 All processes stopped, turnId:', turnId.current);
+  }, [videoRef, idleVideoRef]);
+
+  // Make abortTurn available to other components
+  abortRef.current = abortTurn;
+
   const { sendMessage: sendToLLM } = useLLM({
     onResponse: (response) => {
+      // Check if this response is still valid (not aborted)
+      const currentTurnId = turnId.current;
+      
       addConversationMessage('assistant', response);
-      if (apiConfig) {
+      if (apiConfig && pipelineState !== 'idle') {
+        // Create new abort controller for this D-ID stream
+        didAbortController.current = new AbortController();
         setIsAvatarTalking(true);
-        sendStreamText(response);
+        sendStreamText(response, didAbortController.current);
       }
     }
   });
@@ -106,29 +157,12 @@ export default function ConversationalAvatar() {
       
       // Barge-in: Stop avatar if talking when user starts speaking
       if (isAvatarTalking) {
-        console.log('🛑 User interrupting avatar - stopping stream and video');
-        
-        // Immediately stop video playback
-        if (videoRef.current) {
-          videoRef.current.pause();
-          videoRef.current.currentTime = 0;
-          videoRef.current.style.opacity = '0';
-          console.log('🛑 Video playback stopped immediately');
-        }
-        
-        // Show idle video immediately
-        if (idleVideoRef.current) {
-          idleVideoRef.current.style.opacity = '1';
-        }
-        
-        // Send interrupt to D-ID
-        interruptStream();
-        
-        // Update state immediately
-        setIsAvatarTalking(false);
-        
-        console.log('🎤 Interruption complete - ready for user input');
+        console.log('🛑 BARGE-IN DETECTED - Calling abort function');
+        abortRef.current(); // Call centralized abort
       }
+      
+      // Start new recording turn
+      setPipelineState('processing');
     }
   });
 

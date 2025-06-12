@@ -346,7 +346,7 @@ export function useWebRTC() {
     setStreamingState('empty');
   }, [sessionId, streamId, stopAllStreams, closePC]);
 
-  const sendStreamText = useCallback((text: string) => {
+  const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
     if (!webSocketRef.current || !streamId || !sessionId) {
       console.error('D-ID connection not ready');
       return;
@@ -378,9 +378,20 @@ export function useWebRTC() {
       }
     };
 
+    // Store abort controller for potential interruption
+    if (abortController && abortController.signal) {
+      abortController.signal.addEventListener('abort', () => {
+        console.log('🛑 D-ID stream aborted');
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+        }
+      });
+    }
+
     sendMessage(webSocketRef.current, streamMessage);
     console.log('Text message sent to D-ID');
-  }, [streamId, sessionId]);
+  }, [streamId, sessionId, videoRef]);
 
   const stopVideo = useCallback(() => {
     // Immediately stop video playback
