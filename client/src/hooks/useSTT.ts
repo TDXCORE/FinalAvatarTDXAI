@@ -99,23 +99,32 @@ export function useSTT({ onTranscription }: UseSTTProps) {
 
   // Helper function to detect transcription artifacts
   const isTranscriptionArtifact = useCallback((text: string): boolean => {
+    const normalizedText = text.toLowerCase().trim();
+    
+    // Comprehensive list of known artifacts
     const artifacts = [
       'en español',
       'gracias por ver el video',
       'gracias por ver',
       'por ver el video',
-      'ver el video'
+      'ver el video',
+      'gracias por',
+      'por ver',
+      'del video',
+      'el video'
     ];
     
-    const normalizedText = text.toLowerCase().trim();
-    
-    // Check for exact artifacts
-    if (artifacts.some(artifact => normalizedText.includes(artifact))) {
-      return true;
+    // Check for exact artifacts (more strict)
+    for (const artifact of artifacts) {
+      if (normalizedText === artifact || normalizedText.includes(artifact)) {
+        console.log(`🚫 Artifact detected: "${text}" contains "${artifact}"`);
+        return true;
+      }
     }
     
     // Check for very short transcriptions that are likely noise
-    if (normalizedText.length < 5) {
+    if (normalizedText.length < 8) {
+      console.log(`🚫 Too short: "${text}" (${normalizedText.length} chars)`);
       return true;
     }
     
@@ -123,7 +132,22 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     const words = normalizedText.split(/\s+/);
     const uniqueWords = new Set(words);
     if (words.length > 3 && uniqueWords.size < words.length / 2) {
+      console.log(`🚫 Repetitive pattern: "${text}" (${uniqueWords.size}/${words.length} unique)`);
       return true;
+    }
+    
+    // Check for common noise patterns
+    const noisePatterns = [
+      /^(gracias|thank|thanks)/i,
+      /video\s*$/i,
+      /^(por|for)\s/i
+    ];
+    
+    for (const pattern of noisePatterns) {
+      if (pattern.test(normalizedText)) {
+        console.log(`🚫 Noise pattern: "${text}" matches ${pattern}`);
+        return true;
+      }
     }
     
     return false;
@@ -179,6 +203,8 @@ export function useSTT({ onTranscription }: UseSTTProps) {
         // Filter out common artifacts and repeated phrases
         const isArtifact = isTranscriptionArtifact(transcription);
         
+        console.log(`🔍 Analyzing transcription: "${transcription}" | Similarity: ${similarity.toFixed(2)} | IsArtifact: ${isArtifact}`);
+        
         if (!isDuplicate && !isArtifact) {
           console.log('🎯 Voice transcription:', transcription);
           lastTranscriptionRef.current = transcription;
@@ -207,11 +233,24 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       return;
     }
     
-    // Clear any pending queue to only process the latest audio
-    audioQueueRef.current = [audioBlob];
+    // Add to queue but implement intelligent selection
+    audioQueueRef.current.push(audioBlob);
     
-    // Start processing
-    processAudioQueue();
+    // If multiple audio blobs arrive quickly, only process the largest one
+    setTimeout(() => {
+      if (audioQueueRef.current.length > 1) {
+        // Sort by size and keep only the largest
+        audioQueueRef.current.sort((a, b) => b.size - a.size);
+        const largestBlob = audioQueueRef.current[0];
+        console.log(`📊 Multiple audio detected: processing largest (${largestBlob.size} bytes), discarding ${audioQueueRef.current.length - 1} others`);
+        audioQueueRef.current = [largestBlob];
+      }
+      
+      // Start processing
+      if (!isProcessingRef.current) {
+        processAudioQueue();
+      }
+    }, 100); // Small delay to allow multiple blobs to arrive
   }, [processAudioQueue]);
 
   const startRecording = useCallback(async () => {
