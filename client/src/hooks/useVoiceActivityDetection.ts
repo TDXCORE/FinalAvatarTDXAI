@@ -1,11 +1,11 @@
 import { useRef, useCallback } from 'react';
 import { CONFIG } from '@/lib/config';
 
-// VAD Parameters simplified for reliable detection
-const OPEN_FRAMES = 2;      // más sensible para detectar inicio
+// VAD Parameters calibrated for observed audio levels (10-15)
+const OPEN_FRAMES = 2;      // sensible para detectar inicio
 const CLOSE_FRAMES = 15;    // tiempo razonable de silencio (~500ms)
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
-const THRESHOLD = 20;       // umbral bajo para mejor detección
+const THRESHOLD = 8;        // umbral ajustado para niveles observados
 const MIN_RECORDING_MS = 600; // tiempo mínimo reducido
 const DEBOUNCE_MS = 200;    // debounce más corto
 
@@ -33,6 +33,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
   const recordingStartTimeRef = useRef<number>(0);
   const lastProcessedTimeRef = useRef<number>(0);
   const isProcessingRef = useRef(false);
+  const backgroundLevelRef = useRef<number>(0);
+  const levelHistoryRef = useRef<number[]>([]);
 
   const buildWavFromBuffer = useCallback((audioData: number[]): Blob => {
     // Simple WAV creation from audio buffer
@@ -76,13 +78,30 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     const dataArray = new Uint8Array(bufferLength);
     analyserRef.current.getByteFrequencyData(dataArray);
 
-    // Simple and reliable voice detection
+    // Adaptive voice detection with background noise calibration
     const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
     const level = average;
     
+    // Track level history for adaptive threshold
+    levelHistoryRef.current.push(level);
+    if (levelHistoryRef.current.length > 100) {
+      levelHistoryRef.current.shift();
+    }
+    
+    // Calculate background noise level (lowest 25% of recent levels)
+    if (levelHistoryRef.current.length > 20) {
+      const sortedLevels = [...levelHistoryRef.current].sort((a, b) => a - b);
+      const backgroundLevel = sortedLevels[Math.floor(sortedLevels.length * 0.25)];
+      backgroundLevelRef.current = backgroundLevel;
+    }
+    
+    // Adaptive threshold: background + sensitivity margin
+    const adaptiveThreshold = backgroundLevelRef.current + 3;
+    const finalThreshold = Math.max(adaptiveThreshold, THRESHOLD);
+    
     // Debug logging for troubleshooting
-    if (level > 10) {
-      console.log(`🎵 Audio level: ${level.toFixed(1)} (threshold: ${THRESHOLD})`);
+    if (level > finalThreshold - 2) {
+      console.log(`🎵 Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}`);
     }
 
     // Store in pre-roll buffer (ring buffer)
@@ -97,10 +116,10 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     // Histéresis logic - replaces fixed threshold
     const recording = isRecordingRef.current;
     
-    if (!recording && level > THRESHOLD) {
+    if (!recording && level > finalThreshold) {
       hotFramesRef.current++;
       coldFramesRef.current = 0;
-    } else if (recording && level < THRESHOLD) {
+    } else if (recording && level < finalThreshold) {
       coldFramesRef.current++;
       hotFramesRef.current = 0;
     } else {
@@ -305,6 +324,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     recordingStartTimeRef.current = 0;
     lastProcessedTimeRef.current = 0;
     isProcessingRef.current = false;
+    backgroundLevelRef.current = 0;
+    levelHistoryRef.current = [];
 
     console.log('🔌 Voice Activity Detection stopped');
   }, []);
