@@ -126,28 +126,45 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     // Store current frame for potential recording
     bufferedFramesRef.current.push(...Array.from(dataArray).map(v => v / 255));
     
-    if (!recording && level > finalThreshold) {
+    if (!currentlyRecording && level > finalThreshold) {
       hotFramesRef.current++;
       coldFramesRef.current = 0;
-    } else if (recording && level < finalThreshold) {
+    } else if (currentlyRecording && level < finalThreshold) {
       coldFramesRef.current++;
       hotFramesRef.current = 0;
     } else {
-      if (!recording) hotFramesRef.current = 0;
-      if (recording) coldFramesRef.current = 0;
+      if (!currentlyRecording) hotFramesRef.current = 0;
+      if (currentlyRecording) coldFramesRef.current = 0;
     }
 
-    // Start recording when enough hot frames detected OR immediate barge-in
-    if (!recording && (hotFramesRef.current >= OPEN_FRAMES || (isAvatarSpeaking && level > 8.0))) {
-      const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
+    // Immediate barge-in detection during avatar speech
+    if (isAvatarSpeaking && !currentlyRecording && level > 10.0) {
+      console.log(`🚨 IMMEDIATE BARGE-IN: level=${level.toFixed(1)}, starting recording instantly`);
       
-      // Special case: During avatar speech, allow immediate interruption (barge-in)
-      const allowBargeIn = isAvatarSpeaking && level > 8.0; // Higher threshold for clear interruption
+      isSpeakingRef.current = true;
+      isRecordingRef.current = true;
+      recordingStartTimeRef.current = Date.now();
+      
+      onSpeechStart?.();
+      
+      if (mediaRecorderRef.current && isActiveRef.current) {
+        recordingChunksRef.current = [];
+        mediaRecorderRef.current.start();
+        console.log('🎤 BARGE-IN: Voice detected - started recording');
+      }
+      
+      hotFramesRef.current = 0;
+      return; // Skip normal detection logic
+    }
+    
+    // Normal recording detection
+    if (!currentlyRecording && hotFramesRef.current >= OPEN_FRAMES) {
+      const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       const normalDetection = !isProcessingRef.current && timeSinceLastProcessed >= DEBOUNCE_MS;
       
-      console.log(`🎯 Detection check: isAvatarSpeaking=${isAvatarSpeaking}, level=${level.toFixed(1)}, allowBargeIn=${allowBargeIn}, normalDetection=${normalDetection}, hotFrames=${hotFramesRef.current}`);
+      console.log(`🎯 Normal detection check: level=${level.toFixed(1)}, normalDetection=${normalDetection}, hotFrames=${hotFramesRef.current}`);
       
-      if (allowBargeIn || normalDetection) {
+      if (normalDetection) {
         isSpeakingRef.current = true;
         isRecordingRef.current = true;
         recordingStartTimeRef.current = Date.now();
@@ -179,7 +196,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     }
 
     // Stop recording when enough cold frames detected AND minimum duration met
-    if (recording && coldFramesRef.current >= CLOSE_FRAMES) {
+    if (currentlyRecording && coldFramesRef.current >= CLOSE_FRAMES) {
       const recordingDuration = Date.now() - recordingStartTimeRef.current;
       const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
