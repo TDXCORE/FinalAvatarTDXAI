@@ -111,10 +111,10 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     // Get current recording state
     const currentlyRecording = isRecordingRef.current;
     
-    // Debug logging for troubleshooting
-    if (level > finalThreshold - 2) {
+    // Debug logging for troubleshooting - MORE VERBOSE
+    if (isAvatarSpeaking || level > finalThreshold - 2) {
       const mode = isAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
-      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}`);
+      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}, AvatarSpeaking: ${isAvatarSpeaking}`);
     }
 
     // Store in pre-roll buffer (ring buffer)
@@ -137,20 +137,22 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       if (currentlyRecording) coldFramesRef.current = 0;
     }
 
-    // Immediate barge-in detection during avatar speech
-    if (isAvatarSpeaking && !currentlyRecording && level > 10.0) {
-      console.log(`🚨 IMMEDIATE BARGE-IN: level=${level.toFixed(1)}, starting recording instantly`);
+    // Immediate barge-in detection during avatar speech - VERY LOW THRESHOLD
+    if (isAvatarSpeaking && !currentlyRecording && level > 5.0) {
+      console.log(`🚨 IMMEDIATE BARGE-IN DETECTED: level=${level.toFixed(1)}, avatar speaking, triggering interrupt!`);
       
+      // Immediately trigger the interrupt callback
+      onSpeechStart?.();
+      
+      // Start recording to capture the interruption
       isSpeakingRef.current = true;
       isRecordingRef.current = true;
       recordingStartTimeRef.current = Date.now();
       
-      onSpeechStart?.();
-      
       if (mediaRecorderRef.current && isActiveRef.current) {
         recordingChunksRef.current = [];
         mediaRecorderRef.current.start();
-        console.log('🎤 BARGE-IN: Voice detected - started recording');
+        console.log('🎤 BARGE-IN: Recording started for interruption');
       }
       
       hotFramesRef.current = 0;

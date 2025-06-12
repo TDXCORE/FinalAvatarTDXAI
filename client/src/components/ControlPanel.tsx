@@ -17,6 +17,7 @@ interface ControlPanelProps {
   onStartConversation: () => void;
   onDisconnect: () => void;
   onTestBargein?: () => void;
+  onManualInterrupt?: () => void;
 }
 
 export default function ControlPanel({
@@ -33,7 +34,8 @@ export default function ControlPanel({
   onConnect,
   onStartConversation,
   onDisconnect,
-  onTestBargein
+  onTestBargein,
+  onManualInterrupt
 }: ControlPanelProps) {
   const { runFullTest } = useAudioTest();
 
@@ -84,6 +86,18 @@ export default function ControlPanel({
           >
             <Zap className="w-4 h-4 mr-2" />
             Interrupt
+          </Button>
+        )}
+
+        {/* Manual Interrupt Test */}
+        {onManualInterrupt && (
+          <Button 
+            onClick={onManualInterrupt}
+            className="bg-red-600 hover:bg-red-700 px-4 py-3 font-medium shadow-lg hover:shadow-xl text-sm"
+            title="Manual interrupt test"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Stop
           </Button>
         )}
 

@@ -360,6 +360,18 @@ export default function ConversationalAvatar() {
     console.log('🧪 Test setup complete - try speaking to interrupt the avatar');
   }, [isConnected, apiConfig, sendStreamText]);
 
+  // Manual interrupt test - simulate user speaking during avatar response
+  const testManualInterrupt = useCallback(() => {
+    console.log('🧪 MANUAL INTERRUPT TEST - Simulating user voice during avatar speech');
+    
+    if (isAvatarTalking) {
+      console.log('🛑 Manually triggering abort function');
+      abortRef.current();
+    } else {
+      console.log('❌ Avatar not currently talking - start a response first');
+    }
+  }, [isAvatarTalking]);
+
   // Track latency when stream is done
   useEffect(() => {
     if (streamEvent === 'done' && latencyStart) {
@@ -433,6 +445,7 @@ export default function ConversationalAvatar() {
                 onStartConversation={handleStartConversation}
                 onDisconnect={handleDisconnect}
                 onTestBargein={testBargeIn}
+                onManualInterrupt={testManualInterrupt}
               />
               
               {/* Audio Test Panel - for debugging */}
