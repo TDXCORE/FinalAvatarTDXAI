@@ -117,6 +117,11 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       const mode = isAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
       console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}, AvatarSpeaking: ${isAvatarSpeaking}`);
     }
+    
+    // Additional debug for barge-in detection
+    if (isAvatarSpeaking && level > 3.0) {
+      console.log(`🔥 BARGE-IN CHECK: AvatarSpeaking=${isAvatarSpeaking}, Level=${level.toFixed(1)}, Recording=${currentlyRecording}, Threshold=5.0`);
+    }
 
     // Store in pre-roll buffer (ring buffer)
     preRollBufferRef.current.push(...Array.from(dataArray).map(v => v / 255));
