@@ -194,13 +194,14 @@ export default function ConversationalAvatar() {
             const transcription = data.text.trim();
             console.log('🎯 Voice transcription:', transcription);
             
-            // Filter out only clear artifacts - allow normal conversation words
-            const isRealArtifact = transcription.toLowerCase() === 'en español' ||
-                                 transcription.toLowerCase() === 'gracias por ver' ||
+            // Filter out only obvious video artifacts, allow normal conversation
+            const isRealArtifact = transcription.toLowerCase() === 'gracias por ver' ||
                                  transcription.toLowerCase() === 'subtítulos' ||
-                                 transcription.toLowerCase() === 'subtitulos';
+                                 transcription.toLowerCase() === 'subtitulos' ||
+                                 transcription.toLowerCase() === 'suscríbete' ||
+                                 transcription.toLowerCase() === 'suscribete';
             
-            // Allow all meaningful words including "gracias", "hola", etc.
+            // Allow meaningful conversation including "en español", "gracias", "hola", etc.
             if (!isRealArtifact && transcription.length > 1) {
               console.log('✅ Processing user message after barge-in:', transcription);
               processUserMessage(transcription);
