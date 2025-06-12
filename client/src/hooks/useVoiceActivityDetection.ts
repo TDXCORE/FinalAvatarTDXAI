@@ -167,6 +167,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       isSpeakingRef.current = true;
       isRecordingRef.current = true;
       recordingStartTimeRef.current = Date.now();
+      lastProcessedTimeRef.current = Date.now(); // Reset debounce timer for barge-in
       
       if (mediaRecorderRef.current && isActiveRef.current) {
         recordingChunksRef.current = [];
@@ -175,7 +176,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       }
       
       hotFramesRef.current = 0;
-      return; // Skip normal detection logic
+      // Don't return - continue with normal logic to handle recording termination
     }
     
     // Normal recording detection
@@ -221,8 +222,13 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       const recordingDuration = Date.now() - recordingStartTimeRef.current;
       const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
+      // More lenient stopping conditions for barge-in scenarios
+      const isBargeInScenario = recordingDuration > 0 && recordingStartTimeRef.current > 0;
+      const minDuration = isBargeInScenario ? 800 : MIN_RECORDING_MS; // Shorter minimum for barge-in
+      const debounceTime = isBargeInScenario ? 300 : DEBOUNCE_MS; // Shorter debounce for barge-in
+      
       // Only stop if we've recorded for minimum duration AND not currently processing AND debounce period passed
-      if (recordingDuration >= MIN_RECORDING_MS && !isProcessingRef.current && timeSinceLastProcessed >= DEBOUNCE_MS) {
+      if (recordingDuration >= minDuration && !isProcessingRef.current && timeSinceLastProcessed >= debounceTime) {
         isSpeakingRef.current = false;
         isRecordingRef.current = false;
         isProcessingRef.current = true;
@@ -234,7 +240,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
           lastProcessedTimeRef.current = Date.now();
           
           // Use reduced cooldown during avatar speech for faster interruptions
-          const cooldownMs = isAvatarSpeaking ? INTERRUPT_DEBOUNCE_MS : DEBOUNCE_MS;
+          const cooldownMs = currentAvatarSpeaking ? INTERRUPT_DEBOUNCE_MS : DEBOUNCE_MS;
           setTimeout(() => {
             isProcessingRef.current = false;
           }, cooldownMs);
