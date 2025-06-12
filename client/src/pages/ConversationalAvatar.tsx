@@ -200,22 +200,16 @@ export default function ConversationalAvatar() {
     onSpeechStart: () => {
       console.log('🎤 Voice detected, listening... Avatar talking:', isAvatarTalking);
       
-      // Barge-in: Stop avatar if talking when user starts speaking
-      if (isAvatarTalking) {
-        console.log('🛑 BARGE-IN DETECTED - Avatar was talking, calling abort function');
-        console.log('🛑 Current video state:', videoRef.current ? 'exists' : 'null');
-        console.log('🛑 Current idle video state:', idleVideoRef.current ? 'exists' : 'null');
-        abortRef.current(); // Call centralized abort
-      } else {
+      // Normal speech detection only - barge-in is handled by onInterrupt
+      if (!isAvatarTalking) {
         console.log('🎤 Normal voice detection - avatar not talking');
+        setPipelineState('processing');
       }
-      
-      // Start new recording turn
-      setPipelineState('processing');
     },
     onInterrupt: () => {
-      console.log('🛑 INTERRUPT CALLBACK - Same as Stop button');
+      console.log('🛑 VOICE INTERRUPT DETECTED - Same as Stop button');
       abortRef.current(); // Direct call to abort function - same as Stop button
+      setPipelineState('processing'); // Start new turn after interrupt
     }
   });
 
