@@ -281,14 +281,25 @@ export function useWebRTC() {
       const ws = await connectToWebSocket(apiConfig.websocketUrl, apiConfig.key);
       webSocketRef.current = ws;
       
-      // Add WebSocket event listeners for debugging
+      // Add WebSocket event listeners for debugging and prevent unwanted closures
       ws.onclose = (event) => {
         console.log('🔌 D-ID WebSocket closed:', event.code, event.reason);
+        // Mark WebSocket as null to prevent further usage
+        webSocketRef.current = null;
       };
       
       ws.onerror = (error) => {
         console.error('🔌 D-ID WebSocket error:', error);
       };
+      
+      // Keep connection alive with periodic heartbeat
+      const heartbeatInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000); // Send ping every 30 seconds
 
       // Initialize stream
       const initStreamMessage = {

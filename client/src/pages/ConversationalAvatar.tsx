@@ -143,11 +143,25 @@ export default function ConversationalAvatar() {
   abortRef.current = abortTurn;
 
   const { sendMessage: sendToLLM } = useLLM({
-    onResponse: (response) => {
+    onResponse: async (response) => {
       console.log('🎯 LLM Response in callback:', response);
       addConversationMessage('assistant', response);
       if (apiConfig) {
         console.log('🎯 Creating new D-ID controller and sending to avatar');
+        
+        // Check if WebRTC connection is still valid, reconnect if needed
+        if (!connectionState || connectionState === 'failed' || connectionState === 'disconnected') {
+          console.log('🔄 WebRTC connection lost, reconnecting...');
+          try {
+            await connectWebRTC(apiConfig);
+            // Wait a moment for connection to stabilize
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error('Failed to reconnect WebRTC:', error);
+            return;
+          }
+        }
+        
         // 🔁 Reinicializar didAbortController en cada respuesta
         if (didAbortController.current) {
           didAbortController.current.abort(); // limpia anterior
