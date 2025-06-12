@@ -144,8 +144,12 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
           silenceTimeoutRef.current = null;
         }
 
-        // Note: Using analyser-based capture only, no MediaRecorder
-        console.log('🎤 Voice detected - started recording');
+        // Start MediaRecorder for audio capture
+        if (mediaRecorderRef.current && isActiveRef.current) {
+          recordingChunksRef.current = [];
+          mediaRecorderRef.current.start();
+          console.log('🎤 Voice detected - started recording');
+        }
         
         hotFramesRef.current = 0;
       } else {
@@ -191,7 +195,10 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
         coldFramesRef.current = 0;
         recordingStartTimeRef.current = 0;
         
-        // Note: No MediaRecorder to stop, using analyser-based capture only
+        // Stop MediaRecorder
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          mediaRecorderRef.current.stop();
+        }
       } else if (recordingDuration < MIN_RECORDING_MS) {
         // Reset cold frames counter if minimum duration not met
         coldFramesRef.current = 0;
@@ -238,8 +245,27 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       analyserRef.current.maxDecibels = -10;
       source.connect(analyserRef.current);
 
-      // MediaRecorder disabled - using analyser-based capture only
-      mediaRecorderRef.current = null;
+      // Set up media recorder for audio capture
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        if (recordingChunksRef.current.length > 0) {
+          const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+          console.log(`📦 Processing voice input: ${audioBlob.size} bytes`);
+          onSpeechEnd(audioBlob);
+          recordingChunksRef.current = [];
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
 
       // Set as active and start voice activity detection
       isActiveRef.current = true;

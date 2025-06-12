@@ -84,6 +84,51 @@ export function useSTT({ onTranscription }: UseSTTProps) {
   const lastTranscriptionRef = useRef<string>('');
   const lastTranscriptionTimeRef = useRef<number>(0);
 
+  // Helper function to calculate text similarity
+  const calculateSimilarity = useCallback((text1: string, text2: string): number => {
+    if (!text1 || !text2) return 0;
+    
+    const words1 = text1.toLowerCase().split(/\s+/);
+    const words2 = text2.toLowerCase().split(/\s+/);
+    
+    const commonWords = words1.filter(word => words2.includes(word));
+    const totalWords = Math.max(words1.length, words2.length);
+    
+    return totalWords > 0 ? commonWords.length / totalWords : 0;
+  }, []);
+
+  // Helper function to detect transcription artifacts
+  const isTranscriptionArtifact = useCallback((text: string): boolean => {
+    const artifacts = [
+      'en español',
+      'gracias por ver el video',
+      'gracias por ver',
+      'por ver el video',
+      'ver el video'
+    ];
+    
+    const normalizedText = text.toLowerCase().trim();
+    
+    // Check for exact artifacts
+    if (artifacts.some(artifact => normalizedText.includes(artifact))) {
+      return true;
+    }
+    
+    // Check for very short transcriptions that are likely noise
+    if (normalizedText.length < 5) {
+      return true;
+    }
+    
+    // Check for repeated words/phrases pattern
+    const words = normalizedText.split(/\s+/);
+    const uniqueWords = new Set(words);
+    if (words.length > 3 && uniqueWords.size < words.length / 2) {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
   const processAudioQueue = useCallback(async () => {
     if (isProcessingRef.current || audioQueueRef.current.length === 0) {
       return;
@@ -123,17 +168,24 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       const transcription = data.text?.trim() || '';
       
       if (transcription && transcription.length > 2) {
-        // Check for duplicate transcriptions
+        // Advanced duplicate detection and filtering
         const currentTime = Date.now();
         const timeSinceLastTranscription = currentTime - lastTranscriptionTimeRef.current;
         
-        if (transcription !== lastTranscriptionRef.current || timeSinceLastTranscription > 3000) {
+        // Check for exact duplicates or very similar transcriptions
+        const similarity = calculateSimilarity(transcription, lastTranscriptionRef.current);
+        const isDuplicate = similarity > 0.8 && timeSinceLastTranscription < 5000;
+        
+        // Filter out common artifacts and repeated phrases
+        const isArtifact = isTranscriptionArtifact(transcription);
+        
+        if (!isDuplicate && !isArtifact) {
           console.log('🎯 Voice transcription:', transcription);
           lastTranscriptionRef.current = transcription;
           lastTranscriptionTimeRef.current = currentTime;
           onTranscription(transcription, true);
         } else {
-          console.log('🔄 Duplicate transcription detected, skipping:', transcription);
+          console.log('🔄 Filtered transcription:', transcription, isDuplicate ? '(duplicate)' : '(artifact)');
         }
       } else {
         console.log('🔇 Empty or invalid transcription, skipping');
@@ -146,7 +198,7 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       // Clear queue to prevent backlog
       audioQueueRef.current = [];
     }
-  }, [onTranscription]);
+  }, [onTranscription, calculateSimilarity, isTranscriptionArtifact]);
 
   const processAudioWithGroq = useCallback(async (audioBlob: Blob) => {
     // Skip if already processing to prevent multiple simultaneous transcriptions
