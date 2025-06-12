@@ -138,13 +138,17 @@ export function useSTT({ onTranscription }: UseSTTProps) {
   }, [onTranscription]);
 
   const processAudioWithGroq = useCallback(async (audioBlob: Blob) => {
-    // Add to queue instead of processing immediately
-    audioQueueRef.current.push(audioBlob);
-    
-    // Start processing if not already running
-    if (!isProcessingRef.current) {
-      processAudioQueue();
+    // Skip if already processing to prevent multiple simultaneous transcriptions
+    if (isProcessingRef.current) {
+      console.log('🔄 Skipping audio processing - already processing');
+      return;
     }
+    
+    // Clear any pending queue to only process the latest audio
+    audioQueueRef.current = [audioBlob];
+    
+    // Start processing
+    processAudioQueue();
   }, [processAudioQueue]);
 
   const startRecording = useCallback(async () => {

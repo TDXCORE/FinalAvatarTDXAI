@@ -1,13 +1,13 @@
 import { useRef, useCallback } from 'react';
 import { CONFIG } from '@/lib/config';
 
-// VAD Parameters calibrated for observed audio levels (10-15)
-const OPEN_FRAMES = 2;      // sensible para detectar inicio
-const CLOSE_FRAMES = 15;    // tiempo razonable de silencio (~500ms)
+// VAD Parameters optimized to prevent duplicate detection
+const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
+const CLOSE_FRAMES = 20;    // tiempo más largo para asegurar fin de frase
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
 const THRESHOLD = 8;        // umbral ajustado para niveles observados
-const MIN_RECORDING_MS = 600; // tiempo mínimo reducido
-const DEBOUNCE_MS = 200;    // debounce más corto
+const MIN_RECORDING_MS = 800; // tiempo mínimo para frases completas
+const DEBOUNCE_MS = 1000;   // debounce largo para evitar solapamiento
 
 interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;
@@ -127,27 +127,36 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       if (recording) coldFramesRef.current = 0;
     }
 
-    // Start recording when enough hot frames detected
-    if (!recording && hotFramesRef.current >= OPEN_FRAMES) {
-      isSpeakingRef.current = true;
-      isRecordingRef.current = true;
-      recordingStartTimeRef.current = Date.now();
-      onSpeechStart?.();
+    // Start recording when enough hot frames detected AND not currently processing
+    if (!recording && !isProcessingRef.current && hotFramesRef.current >= OPEN_FRAMES) {
+      const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
-      // Clear any existing timeout
-      if (silenceTimeoutRef.current) {
-        clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = null;
-      }
+      // Only start if debounce period has passed
+      if (timeSinceLastProcessed >= DEBOUNCE_MS) {
+        isSpeakingRef.current = true;
+        isRecordingRef.current = true;
+        recordingStartTimeRef.current = Date.now();
+        onSpeechStart?.();
+        
+        // Clear any existing timeout
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
 
-      // Start MediaRecorder if available
-      if (mediaRecorderRef.current && isActiveRef.current) {
-        recordingChunksRef.current = [];
-        mediaRecorderRef.current.start();
-        console.log('🎤 Voice detected - started recording');
+        // Start MediaRecorder if available
+        if (mediaRecorderRef.current && isActiveRef.current) {
+          recordingChunksRef.current = [];
+          mediaRecorderRef.current.start();
+          console.log('🎤 Voice detected - started recording');
+        }
+        
+        hotFramesRef.current = 0;
+      } else {
+        // Reset frames if debounce period not met
+        hotFramesRef.current = 0;
+        console.log(`⏳ Debounce active - ${timeSinceLastProcessed}ms since last processing`);
       }
-      
-      hotFramesRef.current = 0;
     }
 
     // Stop recording when enough cold frames detected AND minimum duration met
@@ -169,11 +178,13 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
           console.log(`🔇 Processing complete phrase: ${recordingDuration}ms audio`);
           lastProcessedTimeRef.current = Date.now();
           
-          // Process audio and reset processing flag after callback
+          // Process audio immediately and prevent overlapping processing
+          onSpeechEnd(audioBlob);
+          
+          // Set processing flag for longer cooldown period
           setTimeout(() => {
-            onSpeechEnd(audioBlob);
             isProcessingRef.current = false;
-          }, 100);
+          }, 500);
         } else {
           isProcessingRef.current = false;
         }
