@@ -175,6 +175,7 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       formData.append('response_format', 'json');
       formData.append('language', 'es');
       formData.append('temperature', '0');
+      formData.append('prompt', 'El usuario habla español claramente. Transcribe exactamente lo que dice sin omitir palabras.');
 
       const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
