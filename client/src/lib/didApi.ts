@@ -22,8 +22,9 @@ export async function connectToWebSocket(url: string, apiKey: string): Promise<W
 
 export function sendMessage(ws: WebSocket | null, message: any) {
   if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log('📤 Sending D-ID message:', message.type);
     ws.send(JSON.stringify(message));
   } else {
-    console.error('WebSocket not ready for message:', message);
+    console.error('❌ WebSocket not ready for message:', message, 'ReadyState:', ws?.readyState);
   }
 }

@@ -267,6 +267,15 @@ export function useWebRTC() {
       // Connect to D-ID WebSocket
       const ws = await connectToWebSocket(apiConfig.websocketUrl, apiConfig.key);
       webSocketRef.current = ws;
+      
+      // Add WebSocket event listeners for debugging
+      ws.onclose = (event) => {
+        console.log('🔌 D-ID WebSocket closed:', event.code, event.reason);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('🔌 D-ID WebSocket error:', error);
+      };
 
       // Initialize stream
       const initStreamMessage = {
@@ -355,13 +364,17 @@ export function useWebRTC() {
 
   const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
     console.log('🎯 sendStreamText called with:', text);
-    console.log('🎯 WebSocket state:', !!webSocketRef.current);
+    console.log('🎯 WebSocket state:', webSocketRef.current?.readyState);
     console.log('🎯 StreamId:', streamId);
     console.log('🎯 SessionId:', sessionId);
     
-    if (!webSocketRef.current || !streamId || !sessionId) {
-      console.error('❌ D-ID connection not ready - missing:', {
-        webSocket: !!webSocketRef.current,
+    if (!webSocketRef.current || webSocketRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ D-ID WebSocket not open:', webSocketRef.current?.readyState);
+      return;
+    }
+    
+    if (!streamId || !sessionId) {
+      console.error('❌ D-ID session not ready - missing:', {
         streamId: !!streamId,
         sessionId: !!sessionId
       });
@@ -411,27 +424,17 @@ export function useWebRTC() {
           idleVideoRef.current.style.opacity = '1';
         }
         
-        // Aggressively stop D-ID stream
+        // Stop current stream without destroying the session
         if (webSocketRef.current && sessionId && streamId) {
-          // Send multiple stop commands
-          const stopMessage = {
-            type: 'stream-destroy',
+          // Only pause the current stream, don't destroy the connection
+          const pauseMessage = {
+            type: 'stream-pause',
             payload: {
               session_id: sessionId,
               stream_id: streamId
             }
           };
-          sendMessage(webSocketRef.current, stopMessage);
-          
-          // Also try stream-stop
-          const stopStreamMessage = {
-            type: 'stream-stop',
-            payload: {
-              session_id: sessionId,
-              stream_id: streamId
-            }
-          };
-          sendMessage(webSocketRef.current, stopStreamMessage);
+          sendMessage(webSocketRef.current, pauseMessage);
         }
         
         // Force stop all video streams
