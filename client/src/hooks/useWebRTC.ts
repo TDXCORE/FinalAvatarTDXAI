@@ -382,10 +382,32 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
+  const interruptStream = useCallback(() => {
+    if (!webSocketRef.current || !streamId || !sessionId) {
+      console.error('D-ID connection not ready for interruption');
+      return;
+    }
+
+    console.log('🛑 Interrupting D-ID stream');
+
+    // Send interrupt message to stop current stream
+    const interruptMessage = {
+      type: 'stream-interrupt',
+      payload: {
+        session_id: sessionId,
+        stream_id: streamId
+      }
+    };
+
+    sendMessage(webSocketRef.current, interruptMessage);
+    console.log('Stream interrupt sent to D-ID');
+  }, [streamId, sessionId]);
+
   return {
     connect,
     disconnect,
     sendStreamText,
+    interruptStream,
     connectionState,
     iceConnectionState,
     iceGatheringState,

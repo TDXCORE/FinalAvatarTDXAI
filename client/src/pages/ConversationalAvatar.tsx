@@ -28,6 +28,7 @@ export default function ConversationalAvatar() {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
     sendStreamText,
+    interruptStream,
     connectionState,
     iceConnectionState,
     iceGatheringState,
@@ -105,17 +106,16 @@ export default function ConversationalAvatar() {
       
       // Barge-in: Stop avatar if talking when user starts speaking
       if (isAvatarTalking) {
-        console.log('🛑 Interrupting avatar speech');
-        // Stop D-ID stream
-        if (apiConfig) {
-          try {
-            // Send empty stream to stop current playback
-            sendStreamText('');
-          } catch (error) {
-            console.error('Failed to stop stream:', error);
-          }
-        }
+        console.log('🛑 User interrupting avatar - stopping stream');
+        
+        // Use the proper interrupt function
+        interruptStream();
+        
+        // Update local state immediately
         setIsAvatarTalking(false);
+        
+        // Add visual feedback for interruption
+        addConversationMessage('system', 'Usuario interrumpió - escuchando...');
       }
     }
   });

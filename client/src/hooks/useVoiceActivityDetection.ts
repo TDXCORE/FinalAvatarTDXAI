@@ -5,7 +5,7 @@ import { CONFIG } from '@/lib/config';
 const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
 const CLOSE_FRAMES = 30;    // tiempo extendido para capturar frases completas
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
-const THRESHOLD = 8;        // umbral ajustado para niveles observados
+const THRESHOLD = 6;        // umbral reducido para detección más sensible de interrupciones
 const MIN_RECORDING_MS = 1200; // tiempo mínimo extendido para capturar frases completas
 const DEBOUNCE_MS = 1500;   // debounce más largo para evitar solapamiento
 
@@ -95,8 +95,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       backgroundLevelRef.current = backgroundLevel;
     }
     
-    // Adaptive threshold: background + sensitivity margin
-    const adaptiveThreshold = backgroundLevelRef.current + 3;
+    // Adaptive threshold: background + reduced sensitivity margin for better interruption detection
+    const adaptiveThreshold = backgroundLevelRef.current + 2;
     const finalThreshold = Math.max(adaptiveThreshold, THRESHOLD);
     
     // Debug logging for troubleshooting
