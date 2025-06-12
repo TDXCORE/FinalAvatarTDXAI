@@ -106,23 +106,28 @@ export default function ConversationalAvatar() {
       
       // Barge-in: Stop avatar if talking when user starts speaking
       if (isAvatarTalking) {
-        console.log('🛑 User interrupting avatar - stopping stream');
+        console.log('🛑 User interrupting avatar - stopping stream and video');
         
         // Immediately stop video playback
         if (videoRef.current) {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
+          videoRef.current.style.opacity = '0';
           console.log('🛑 Video playback stopped immediately');
         }
         
-        // Use the proper interrupt function
+        // Show idle video immediately
+        if (idleVideoRef.current) {
+          idleVideoRef.current.style.opacity = '1';
+        }
+        
+        // Send interrupt to D-ID
         interruptStream();
         
-        // Update local state immediately
+        // Update state immediately
         setIsAvatarTalking(false);
         
-        // Add visual feedback for interruption
-        addConversationMessage('system', 'Usuario interrumpió - escuchando...');
+        console.log('🎤 Interruption complete - ready for user input');
       }
     }
   });
