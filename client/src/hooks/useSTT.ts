@@ -207,7 +207,12 @@ export function useSTT({ onTranscription }: UseSTTProps) {
         console.log(`🔍 Analyzing transcription: "${transcription}" | Similarity: ${similarity.toFixed(2)} | IsArtifact: ${isArtifact}`);
         
         // Additional safety check - reject if contains any artifact keywords
-        const containsArtifact = /\b(en español|gracias|video|por ver)\b/i.test(transcription);
+        const cleanText = transcription.toLowerCase().trim();
+        const containsArtifact = cleanText === 'en español' || 
+                                cleanText.includes('en español') ||
+                                cleanText.includes('gracias') ||
+                                cleanText.includes('video') ||
+                                cleanText.includes('por ver');
         
         if (!isDuplicate && !isArtifact && !containsArtifact) {
           console.log('🎯 Voice transcription:', transcription);
@@ -218,7 +223,8 @@ export function useSTT({ onTranscription }: UseSTTProps) {
           console.log('🔄 Filtered transcription:', transcription, 
             isDuplicate ? '(duplicate)' : 
             isArtifact ? '(artifact)' : 
-            containsArtifact ? '(contains artifact keywords)' : '(other)');
+            containsArtifact ? '(contains artifact keywords)' : '(other)',
+            `| Clean: "${cleanText}"`);
         }
       } else {
         console.log('🔇 Empty or invalid transcription, skipping');
