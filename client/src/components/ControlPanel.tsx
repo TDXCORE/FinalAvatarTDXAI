@@ -32,7 +32,8 @@ export default function ControlPanel({
   sttStatus,
   onConnect,
   onStartConversation,
-  onDisconnect
+  onDisconnect,
+  onTestBargein
 }: ControlPanelProps) {
   const { runFullTest } = useAudioTest();
 
@@ -73,6 +74,18 @@ export default function ControlPanel({
           <TestTube className="w-4 h-4 mr-2" />
           Test
         </Button>
+
+        {/* Test Barge-in Button */}
+        {onTestBargein && (
+          <Button 
+            onClick={onTestBargein}
+            className="bg-orange-600 hover:bg-orange-700 px-4 py-3 font-medium shadow-lg hover:shadow-xl text-sm"
+            title="Test interruption functionality"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Interrupt
+          </Button>
+        )}
 
         {/* Disconnect Button */}
         <Button 

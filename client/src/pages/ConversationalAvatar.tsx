@@ -334,6 +334,32 @@ export default function ConversationalAvatar() {
     }
   };
 
+  // Test barge-in functionality
+  const testBargeIn = useCallback(() => {
+    console.log('🧪 TESTING BARGE-IN FUNCTIONALITY');
+    
+    if (!isConnected) {
+      console.log('❌ Not connected - connect first');
+      return;
+    }
+    
+    // Simulate avatar talking
+    setIsAvatarTalking(true);
+    console.log('🗣️ Simulated avatar talking state: true');
+    
+    // Create a test D-ID controller
+    didAbortController.current = new AbortController();
+    
+    // Simulate a long avatar response
+    setTimeout(() => {
+      if (apiConfig) {
+        sendStreamText("Esta es una respuesta muy larga para probar la funcionalidad de interrupción. El usuario debería poder interrumpir esta respuesta hablando mientras el avatar está respondiendo.", didAbortController.current || undefined);
+      }
+    }, 1000);
+    
+    console.log('🧪 Test setup complete - try speaking to interrupt the avatar');
+  }, [isConnected, apiConfig, sendStreamText]);
+
   // Track latency when stream is done
   useEffect(() => {
     if (streamEvent === 'done' && latencyStart) {
@@ -406,6 +432,7 @@ export default function ConversationalAvatar() {
                 onConnect={handleConnect}
                 onStartConversation={handleStartConversation}
                 onDisconnect={handleDisconnect}
+                onTestBargein={testBargeIn}
               />
               
               {/* Audio Test Panel - for debugging */}
