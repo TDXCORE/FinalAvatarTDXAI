@@ -38,7 +38,10 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
         model: model,
         messages: messages,
         temperature: 0.7,
-        max_tokens: 150
+        max_tokens: 120,  // Reduced for faster responses
+        top_p: 0.9,       // Optimized for conversation
+        stream: false,    // Keep simple for now
+        stop: ["\n\n", "Usuario:", "User:"] // Stop tokens for conversation
       })
     });
 

@@ -234,6 +234,7 @@ export default function ConversationalAvatar() {
     stopVAD();
     setIsConnected(false);
     setIsRecording(false);
+    setIsAvatarTalking(false);
     setCurrentTranscription('');
     setConversationHistory([]);
     setLatency(null);
