@@ -8,13 +8,15 @@ const PRE_ROLL_MS = 200;    // buffer mínimo necesario
 const THRESHOLD = 6;        // umbral reducido para detección más sensible de interrupciones
 const MIN_RECORDING_MS = 1200; // tiempo mínimo extendido para capturar frases completas
 const DEBOUNCE_MS = 1500;   // debounce más largo para evitar solapamiento
+const INTERRUPT_DEBOUNCE_MS = 300; // debounce reducido para interrupciones
 
 interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;
   onSpeechStart?: () => void;
+  isAvatarSpeaking?: boolean; // Nuevo parámetro para modo interrupción
 }
 
-export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVADProps) {
+export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatarSpeaking = false }: UseVADProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -176,10 +178,11 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
           mediaRecorderRef.current.stop();
           lastProcessedTimeRef.current = Date.now();
           
-          // Set processing flag for longer cooldown period
+          // Use reduced cooldown during avatar speech for faster interruptions
+          const cooldownMs = isAvatarSpeaking ? INTERRUPT_DEBOUNCE_MS : DEBOUNCE_MS;
           setTimeout(() => {
             isProcessingRef.current = false;
-          }, 1000);
+          }, cooldownMs);
         } else {
           isProcessingRef.current = false;
         }

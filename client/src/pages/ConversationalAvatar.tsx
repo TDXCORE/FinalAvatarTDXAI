@@ -68,6 +68,7 @@ export default function ConversationalAvatar() {
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({
+    isAvatarSpeaking: isAvatarTalking,
     onSpeechEnd: async (audioBlob) => {
       console.log(`📦 Processing voice input: ${audioBlob.size} bytes`);
       
