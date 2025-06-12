@@ -162,10 +162,12 @@ export default function ConversationalAvatar() {
           }
         }
         
-        // 🔁 Reinicializar didAbortController en cada respuesta
-        if (didAbortController.current) {
-          didAbortController.current.abort(); // limpia anterior
+        // Only abort if avatar is currently talking to prevent killing new clips
+        if (isAvatarTalking && didAbortController.current) {
+          didAbortController.current.abort();
+          didAbortController.current = null;
         }
+        
         const controller = new AbortController();
         didAbortController.current = controller;
         setIsAvatarTalking(true);
@@ -469,6 +471,8 @@ export default function ConversationalAvatar() {
       setPipelineState('idle');
       if (videoRef.current) videoRef.current.style.opacity = '1';
       if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
+      // Clean abort controller when clip finishes
+      didAbortController.current = null;
     } else if (streamEvent === 'started') {
       setIsAvatarTalking(true);
       console.log('🗣️ Avatar started speaking');

@@ -18,6 +18,7 @@ export function useWebRTC() {
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamId, setStreamId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const streamIdRef = useRef<string | null>(null);
   const [lastBytesReceived, setLastBytesReceived] = useState(0);
   const [videoIsPlaying, setVideoIsPlaying] = useState(false);
 
@@ -320,6 +321,7 @@ export function useWebRTC() {
           case 'init-stream':
             const { id: newStreamId, offer, ice_servers: iceServers, session_id: newSessionId } = data;
             setStreamId(newStreamId);
+            streamIdRef.current = newStreamId;
             setSessionId(newSessionId);
             console.log('D-ID stream initialized:', newStreamId, newSessionId);
             
@@ -362,15 +364,16 @@ export function useWebRTC() {
 
   const disconnect = useCallback(() => {
     console.log('🔌 Disconnect initiated - closing D-ID session');
-    if (webSocketRef.current) {
+    if (webSocketRef.current && streamIdRef.current) {
       const deleteMessage = {
         type: 'delete-stream',
         payload: {
           session_id: sessionId,
-          stream_id: streamId
+          stream_id: streamIdRef.current
         }
       };
       sendMessage(webSocketRef.current, deleteMessage);
+      streamIdRef.current = null;
       
       webSocketRef.current.close();
       webSocketRef.current = null;
@@ -385,7 +388,7 @@ export function useWebRTC() {
     setIsStreamReady(false);
     setStreamEvent('');
     setStreamingState('empty');
-  }, [sessionId, streamId, stopAllStreams, closePC]);
+  }, [sessionId, stopAllStreams, closePC]);
 
   // Soft reset for maintaining connection between conversations
   const softReset = useCallback(() => {
@@ -398,7 +401,7 @@ export function useWebRTC() {
     // setIsStreamReady(false); // Comment out to maintain readiness
   }, [sessionId, streamId]);
 
-  const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
+  const sendStreamText = useCallback(async (text: string, abortController?: AbortController) => {
     console.log('🎯 sendStreamText called with:', text);
     console.log('🎯 WebSocket state:', webSocketRef.current?.readyState);
     console.log('🎯 StreamId:', streamId);
@@ -418,6 +421,21 @@ export function useWebRTC() {
       });
       console.error('❌ This means the D-ID session was reset or never established properly');
       return;
+    }
+
+    // Clean previous stream before creating new one
+    if (streamIdRef.current) {
+      console.log('🔒 Cleaning previous stream:', streamIdRef.current);
+      const deleteMessage = {
+        type: 'delete-stream',
+        payload: {
+          session_id: sessionId,
+          stream_id: streamIdRef.current
+        }
+      };
+      sendMessage(webSocketRef.current, deleteMessage);
+      streamIdRef.current = null;
+      await new Promise(resolve => setTimeout(resolve, 50)); // Micro-delay
     }
 
     console.log('🎯 Sending text to D-ID avatar:', text);
@@ -527,12 +545,12 @@ export function useWebRTC() {
     stopVideo();
     
     // Send interrupt message to D-ID if connection is available
-    if (webSocketRef.current && streamId && sessionId) {
+    if (webSocketRef.current && streamIdRef.current) {
       const interruptMessage = {
         type: 'stream-interrupt',
         payload: {
           session_id: sessionId,
-          stream_id: streamId
+          stream_id: streamIdRef.current
         }
       };
       sendMessage(webSocketRef.current, interruptMessage);
@@ -540,7 +558,7 @@ export function useWebRTC() {
       // Mark as ready immediately to prevent UI blocking
       setIsStreamReady(true);
     }
-  }, [streamId, sessionId, stopVideo]);
+  }, [sessionId, stopVideo]);
 
   return {
     connect,
