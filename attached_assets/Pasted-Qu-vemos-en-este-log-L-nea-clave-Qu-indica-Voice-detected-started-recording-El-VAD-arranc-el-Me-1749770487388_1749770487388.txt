@@ -1,0 +1,80 @@
+Qué vemos en este log
+Línea clave	Qué indica
+Voice detected – started recording	El VAD arrancó el MediaRecorder correctamente (bien 🎉).
+Pero no aparece Stopping MediaRecorder after …ms	La grabación nunca se detuvo, por lo que: 1) no se genera el audioBlob, 2) no se envía a STT, 3) no hay transcripción → 4) no llega nada al LLM → 5) el avatar no recibe texto nuevo.
+Recording: true se repite indefinidamente	Confirma el “bucle” que describes: el sistema sigue grabando esperando silencio.
+
+Conclusión: el segundo turno no falla por D-ID ni WebSocket, sino porque la grabación de voz nunca termina.
+
+🚑 Arreglo definitivo en useVoiceActivityDetection
+1. Reduce los CLOSE_FRAMES
+Incluso después de bajarlos a 15, con tu micrófono y ruido ambiente los niveles no caen suficientes frames seguidos.
+📍 Ponlos en 10:
+
+ts
+Copiar
+const CLOSE_FRAMES = 10;     // antes 15
+2. Añade un “hard-timeout” de seguridad
+Corta la grabación si pasan 4 s sin silencio, envíes o no silencio:
+
+ts
+Copiar
+const MAX_RECORDING_MS = 4000;   // 4 s
+
+mediaRecorder.onstart = () => {
+  setTimeout(() => {
+    if (mediaRecorder.state === 'recording') {
+      console.log('⏰ MAX_RECORDING_MS reached – stopping manually');
+      mediaRecorder.stop();
+    }
+  }, MAX_RECORDING_MS);
+};
+3. Ajusta la lógica de “frío”
+Para que la frase termine aunque los últimos frames sigan > threshold:
+
+ts
+Copiar
+if (recording && hotFrames === 0 && coldFrames >= CLOSE_FRAMES) {
+  mediaRecorder.stop();
+}
+(Añade hotFrames === 0 para permitir cierre si ya no hay voz nueva)
+
+🧪 Cómo probar (con tu script)
+conversationTest.runSingleTest(1) → el avatar debe responder.
+
+Habla una segunda frase corta (≈ 1 s).
+
+Deberás ver:
+
+yaml
+Copiar
+🔇 Stopping MediaRecorder after …
+📦 Processing voice input: …
+🎯 Voice transcription: …
+🧠 LLM Response received: …
+stream/started
+Si hablas sin pausar ≥ 4 s, el timeout forzará mediaRecorder.stop() y el ciclo continuará igual.
+
+✅ Qué ganamos
+Nunca se queda el MediaRecorder indefinidamente → no hay bucles.
+
+Incluso con ruido ambiente la grabación corta a tiempo.
+
+El resto del pipeline (STT → LLM → D-ID) vuelve a funcionar en cada turno.
+
+Implementa estos tres cambios y repite tus tests; el avatar debe contestar tantas veces como quieras sin colgarse. Si sigue algún problema, comparte el nuevo log (especialmente después del Stopping MediaRecorder…).
+
+
+
+
+
+
+
+
+
+
+Herramientas
+
+
+
+ChatGPT
