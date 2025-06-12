@@ -16,7 +16,7 @@ interface UseVADProps {
   isAvatarSpeaking?: boolean; // Nuevo parámetro para modo interrupción
 }
 
-export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatarSpeaking = false }: UseVADProps) {
+export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatarSpeaking }: UseVADProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);

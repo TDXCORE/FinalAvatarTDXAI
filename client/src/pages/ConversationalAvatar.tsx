@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import AvatarVideo from "@/components/AvatarVideo";
 import ConversationPanel from "@/components/ConversationPanel";
@@ -23,7 +23,6 @@ export default function ConversationalAvatar() {
   const [latency, setLatency] = useState<number | null>(null);
   const [apiConfig, setApiConfig] = useState<any>(null);
   const [latencyStart, setLatencyStart] = useState<number | null>(null);
-
   const {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
