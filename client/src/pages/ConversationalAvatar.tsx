@@ -86,10 +86,12 @@ export default function ConversationalAvatar() {
       idleVideoRef.current.play().catch(e => console.log('Idle video play failed:', e));
     }
     
-    // 2. Stop D-ID connection aggressively
+    // 2. Stop current D-ID stream only (don't prevent future streams)
     if (didAbortController.current) {
-      console.log('🛑 Aborting D-ID controller');
+      console.log('🛑 Aborting current D-ID controller');
       didAbortController.current.abort();
+      // Clear the controller so new ones can be created
+      didAbortController.current = null;
     }
     
     // Don't force stop WebRTC streams completely - just interrupt current stream
@@ -133,12 +135,17 @@ export default function ConversationalAvatar() {
 
   const { sendMessage: sendToLLM } = useLLM({
     onResponse: (response) => {
+      console.log('🎯 LLM Response in callback:', response);
       addConversationMessage('assistant', response);
       if (apiConfig) {
+        console.log('🎯 Creating new D-ID controller and sending to avatar');
         // Create new abort controller for this D-ID stream
         didAbortController.current = new AbortController();
         setIsAvatarTalking(true);
+        console.log('🎯 Calling sendStreamText with response:', response);
         sendStreamText(response, didAbortController.current);
+      } else {
+        console.log('❌ No apiConfig available for D-ID');
       }
     }
   });
@@ -174,16 +181,14 @@ export default function ConversationalAvatar() {
             const transcription = data.text.trim();
             console.log('🎯 Voice transcription:', transcription);
             
-            // Filter out common artifacts - but be more lenient for barge-in scenarios
-            const isSimpleArtifact = transcription.toLowerCase() === 'en español' ||
-                                   transcription.toLowerCase() === 'gracias por ver' ||
-                                   transcription.toLowerCase() === 'gracias';
+            // Filter out only clear artifacts - allow normal conversation words
+            const isRealArtifact = transcription.toLowerCase() === 'en español' ||
+                                 transcription.toLowerCase() === 'gracias por ver' ||
+                                 transcription.toLowerCase() === 'subtítulos' ||
+                                 transcription.toLowerCase() === 'subtitulos';
             
-            // For longer transcriptions, check if they contain meaningful content beyond artifacts
-            const hasRealContent = transcription.split(' ').length > 3 && 
-                                 !transcription.toLowerCase().match(/^(en español\s*)+$/);
-            
-            if (!isSimpleArtifact && (hasRealContent || transcription.split(' ').length <= 3)) {
+            // Allow all meaningful words including "gracias", "hola", etc.
+            if (!isRealArtifact && transcription.length > 1) {
               console.log('✅ Processing user message after barge-in:', transcription);
               processUserMessage(transcription);
             } else {

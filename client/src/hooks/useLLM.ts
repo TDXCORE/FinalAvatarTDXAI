@@ -13,8 +13,11 @@ interface Message {
 export function useLLM({ onResponse }: UseLLMProps) {
   const sendMessage = useCallback(async (messages: Message[], abortController?: AbortController) => {
     try {
+      console.log('🧠 Sending to LLM with controller:', !!abortController);
       const response = await sendToGroqLLM(messages, 'llama-3.3-70b-versatile', abortController);
+      console.log('🧠 LLM Response received:', response);
       onResponse(response);
+      console.log('🧠 LLM onResponse callback called');
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('🛑 LLM request aborted');
