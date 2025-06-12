@@ -137,6 +137,13 @@ export function useWebRTC() {
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
 
+    // Set video stream source
+    if (event.streams && event.streams[0] && videoRef.current) {
+      console.log('Setting video stream source');
+      videoRef.current.srcObject = event.streams[0];
+      videoRef.current.style.opacity = '1';
+    }
+
     statsIntervalRef.current = setInterval(async () => {
       if (peerConnectionRef.current) {
         const stats = await peerConnectionRef.current.getStats(event.track);
