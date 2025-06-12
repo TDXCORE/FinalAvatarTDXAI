@@ -160,6 +160,7 @@ export default function ConversationalAvatar() {
         }
       } catch (error) {
         console.error('Voice processing failed:', error);
+        setPipelineState('idle');
       }
     },
     onSpeechStart: () => {
