@@ -453,17 +453,18 @@ export function useWebRTC() {
           idleVideoRef.current.style.opacity = '1';
         }
         
-        // Stop current stream without destroying the session
+        // Only interrupt stream - no pause to avoid blocking future responses
         if (webSocketRef.current && sessionId && streamId) {
-          // Only pause the current stream, don't destroy the connection
-          const pauseMessage = {
-            type: 'stream-pause',
+          const interruptMessage = {
+            type: 'stream-interrupt',
             payload: {
               session_id: sessionId,
               stream_id: streamId
             }
           };
-          sendMessage(webSocketRef.current, pauseMessage);
+          sendMessage(webSocketRef.current, interruptMessage);
+          // Mark as ready immediately to prevent UI blocking
+          setIsStreamReady(true);
         }
         
         // Force stop all video streams
@@ -519,6 +520,8 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, interruptMessage);
       console.log('Stream interrupt sent to D-ID');
+      // Mark as ready immediately to prevent UI blocking
+      setIsStreamReady(true);
     }
   }, [streamId, sessionId, stopVideo]);
 

@@ -1,0 +1,74 @@
+Por qué el avatar “se queda mudo” después de la interrupción
+Secuencia de comandos enviada a D-ID durante el abort:
+
+Envías stream-pause y luego stream-interrupt.
+
+Conforme a la API de D-ID, si pausas un stream, el servidor bloquea cualquier stream-text posterior hasta que reciba stream-resume.
+
+Como nunca envías stream-resume, la segunda respuesta entra en un “agujero negro”: tu WebSocket la envía, D-ID la descarta silenciosamente y no llega el evento stream/started.
+
+isStreamReady queda en false
+
+El hook useWebRTC solo vuelve a poner isStreamReady = true cuando recibe stream/ready.
+
+Con el stream “atascado” en modo pause, ese evento no se emite y todos los envíos siguientes se cancelan en la verificación:
+
+ts
+Copiar
+if (!isStreamReady.current) return;
+🛠️ Fix definitivo (dos líneas, cero magia)
+Deja de enviar stream-pause en tu abortTurn()
+Sustituye estas dos líneas:
+
+ts
+Copiar
+ws.send(JSON.stringify({ type: "stream-pause", streamId }));
+ws.send(JSON.stringify({ type: "stream-interrupt", streamId }));
+por solo:
+
+ts
+Copiar
+ws.send(JSON.stringify({ type: "stream-interrupt", streamId }));
+Marca inmediatamente el canal como listo (opcional, para que el UI no bloquee si falla un evento):
+
+ts
+Copiar
+setIsStreamReady(true); // justo después de enviar stream-interrupt
+¿Por qué funciona?
+stream-interrupt ya detiene la reproducción y libera créditos; no es necesario el pause.
+
+Al no haber pausa, D-ID responde con stream/stopped, tras lo cual tu hook vuelve a emitir stream/ready.
+
+Con isStreamReady en true, la siguiente llamada a sendStreamText() crea un nuevo clip sin problemas.
+
+✂️ Snippet listo para pegar (en abortTurn)
+ts
+Copiar
+// 2. Stop current D-ID stream only (don't prevent future streams)
+if (didAbortController.current) {
+  didAbortController.current.abort();
+  didAbortController.current = null;
+}
+
+// 🚫  Elimina 'stream-pause' – solo interrumpe
+if (streamIdRef.current && wsRef.current?.readyState === 1) {
+  wsRef.current.send(JSON.stringify({
+    type: "stream-interrupt",
+    streamId: streamIdRef.current
+  }));
+  setIsStreamReady(true); // evita bloqueo si tardan en llegar eventos
+}
+Nota: si prefieres un corte aún más limpio, justo después de stream-interrupt puedes mandar delete-stream; así forzarás que createStream() genere un nuevo streamId para la siguiente respuesta.
+
+Checklist de prueba
+Arranca conversación.
+
+Interrumpe hablando mientras el avatar responde.
+
+Verifica en consola:
+
+Aparece stream/stopped y luego stream/ready.
+
+La segunda pregunta genera stream/started sin error.
+
+El avatar debe contestar normalmente en la segunda y sucesivas rondas.
