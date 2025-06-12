@@ -382,26 +382,45 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
-  const interruptStream = useCallback(() => {
-    if (!webSocketRef.current || !streamId || !sessionId) {
-      console.error('D-ID connection not ready for interruption');
-      return;
+  const stopVideo = useCallback(() => {
+    // Immediately stop video playback
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      console.log('🛑 Video playback stopped');
     }
-
-    console.log('🛑 Interrupting D-ID stream');
-
-    // Send interrupt message to stop current stream
-    const interruptMessage = {
-      type: 'stream-interrupt',
-      payload: {
-        session_id: sessionId,
-        stream_id: streamId
+    
+    // Show idle video immediately
+    if (idleVideoRef.current) {
+      idleVideoRef.current.style.display = 'block';
+      if (videoRef.current) {
+        videoRef.current.style.display = 'none';
       }
-    };
+    }
+    
+    setStreamingState('empty');
+    setVideoIsPlaying(false);
+  }, []);
 
-    sendMessage(webSocketRef.current, interruptMessage);
-    console.log('Stream interrupt sent to D-ID');
-  }, [streamId, sessionId]);
+  const interruptStream = useCallback(() => {
+    console.log('🛑 Interrupting D-ID stream and video playback');
+    
+    // Immediately stop video playback
+    stopVideo();
+    
+    // Send interrupt message to D-ID if connection is available
+    if (webSocketRef.current && streamId && sessionId) {
+      const interruptMessage = {
+        type: 'stream-interrupt',
+        payload: {
+          session_id: sessionId,
+          stream_id: streamId
+        }
+      };
+      sendMessage(webSocketRef.current, interruptMessage);
+      console.log('Stream interrupt sent to D-ID');
+    }
+  }, [streamId, sessionId, stopVideo]);
 
   return {
     connect,

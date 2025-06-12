@@ -109,6 +109,13 @@ export default function ConversationalAvatar() {
       if (isAvatarTalking) {
         console.log('🛑 User interrupting avatar - stopping stream');
         
+        // Immediately stop video playback
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+          console.log('🛑 Video playback stopped immediately');
+        }
+        
         // Use the proper interrupt function
         interruptStream();
         
