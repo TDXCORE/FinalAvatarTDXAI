@@ -81,6 +81,9 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     }
   }, [onTranscription]);
 
+  const lastTranscriptionRef = useRef<string>('');
+  const lastTranscriptionTimeRef = useRef<number>(0);
+
   const processAudioQueue = useCallback(async () => {
     if (isProcessingRef.current || audioQueueRef.current.length === 0) {
       return;
@@ -120,8 +123,18 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       const transcription = data.text?.trim() || '';
       
       if (transcription && transcription.length > 2) {
-        console.log('🎯 Voice transcription:', transcription);
-        onTranscription(transcription, true);
+        // Check for duplicate transcriptions
+        const currentTime = Date.now();
+        const timeSinceLastTranscription = currentTime - lastTranscriptionTimeRef.current;
+        
+        if (transcription !== lastTranscriptionRef.current || timeSinceLastTranscription > 3000) {
+          console.log('🎯 Voice transcription:', transcription);
+          lastTranscriptionRef.current = transcription;
+          lastTranscriptionTimeRef.current = currentTime;
+          onTranscription(transcription, true);
+        } else {
+          console.log('🔄 Duplicate transcription detected, skipping:', transcription);
+        }
       } else {
         console.log('🔇 Empty or invalid transcription, skipping');
       }
@@ -130,10 +143,8 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     } finally {
       isProcessingRef.current = false;
       
-      // Process next item in queue after delay
-      setTimeout(() => {
-        processAudioQueue();
-      }, 200);
+      // Clear queue to prevent backlog
+      audioQueueRef.current = [];
     }
   }, [onTranscription]);
 

@@ -144,12 +144,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
           silenceTimeoutRef.current = null;
         }
 
-        // Start MediaRecorder if available
-        if (mediaRecorderRef.current && isActiveRef.current) {
-          recordingChunksRef.current = [];
-          mediaRecorderRef.current.start();
-          console.log('🎤 Voice detected - started recording');
-        }
+        // Note: Using analyser-based capture only, no MediaRecorder
+        console.log('🎤 Voice detected - started recording');
         
         hotFramesRef.current = 0;
       } else {
@@ -195,14 +191,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
         coldFramesRef.current = 0;
         recordingStartTimeRef.current = 0;
         
-        // Stop MediaRecorder if active
-        if (mediaRecorderRef.current && isActiveRef.current) {
-          try {
-            mediaRecorderRef.current.stop();
-          } catch (e) {
-            // MediaRecorder might already be stopped
-          }
-        }
+        // Note: No MediaRecorder to stop, using analyser-based capture only
       } else if (recordingDuration < MIN_RECORDING_MS) {
         // Reset cold frames counter if minimum duration not met
         coldFramesRef.current = 0;
@@ -249,37 +238,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       analyserRef.current.maxDecibels = -10;
       source.connect(analyserRef.current);
 
-      // Set up media recorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordingChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-        if (audioBlob.size > 0) {
-          console.log(`📦 Processing audio chunk: ${audioBlob.size} bytes`);
-          onSpeechEnd(audioBlob);
-        }
-        recordingChunksRef.current = [];
-        
-        // Prepare for next recording segment if still active
-        if (isActiveRef.current && mediaRecorderRef.current) {
-          setTimeout(() => {
-            if (isActiveRef.current && !isRecordingRef.current) {
-              // Ready for next voice detection cycle
-              console.log('🔄 Ready for next voice input');
-            }
-          }, 100);
-        }
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
+      // MediaRecorder disabled - using analyser-based capture only
+      mediaRecorderRef.current = null;
 
       // Set as active and start voice activity detection
       isActiveRef.current = true;
