@@ -1,6 +1,13 @@
 import { useRef, useState, useCallback } from 'react';
 import { connectToWebSocket, sendMessage } from '@/lib/didApi';
 
+// Helper function to ensure WebSocket connection is open
+export async function ensureSocketOpen(webSocketRef: React.MutableRefObject<WebSocket | null>, connectFn: () => Promise<void>) {
+  if (!webSocketRef.current || webSocketRef.current.readyState !== WebSocket.OPEN) {
+    await connectFn();
+  }
+}
+
 export function useWebRTC() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const idleVideoRef = useRef<HTMLVideoElement>(null);
@@ -403,14 +410,10 @@ export function useWebRTC() {
 
   const sendStreamText = useCallback(async (text: string, abortController?: AbortController) => {
     console.log('🎯 sendStreamText called with:', text);
-    console.log('🎯 WebSocket state:', webSocketRef.current?.readyState);
-    console.log('🎯 StreamId:', streamId);
-    console.log('🎯 SessionId:', sessionId);
-    console.log('🎯 IsStreamReady:', isStreamReady);
     
+    // Ensure WebSocket connection is open
     if (!webSocketRef.current || webSocketRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ D-ID WebSocket not open:', webSocketRef.current?.readyState);
-      console.error('❌ This means the WebSocket connection was closed or lost');
       return;
     }
     
@@ -419,7 +422,6 @@ export function useWebRTC() {
         streamId: !!streamId,
         sessionId: !!sessionId
       });
-      console.error('❌ This means the D-ID session was reset or never established properly');
       return;
     }
 
@@ -435,6 +437,7 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, deleteMessage);
       streamIdRef.current = null;
+      setIsStreamReady(false);
       await new Promise(resolve => setTimeout(resolve, 50)); // Micro-delay
     }
 
@@ -555,8 +558,7 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, interruptMessage);
       console.log('Stream interrupt sent to D-ID');
-      // Mark as ready immediately to prevent UI blocking
-      setIsStreamReady(true);
+      setIsStreamReady(true); // Desbloquea siguiente clip
     }
   }, [sessionId, stopVideo]);
 

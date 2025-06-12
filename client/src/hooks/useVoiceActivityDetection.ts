@@ -3,11 +3,11 @@ import { CONFIG } from '@/lib/config';
 
 // VAD Parameters optimized to prevent duplicate detection
 const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
-const CLOSE_FRAMES = 10;    // antes 15 - reduce para terminar grabación más rápido
+const CLOSE_FRAMES = 8;     // Further reduced for faster termination
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
 const THRESHOLD = 3.0;      // umbral optimizado para interrupciones fluidas durante habla del avatar
-const MIN_RECORDING_MS = 700; // antes 800 - permite frases más cortas
-const MAX_RECORDING_MS = 4000; // 4s - timeout de seguridad para evitar grabaciones indefinidas
+const MIN_RECORDING_MS = 500; // Reduced for quicker processing
+const MAX_RECORDING_MS = 3500; // Reduced for better response times
 const DEBOUNCE_MS = 1500;   // debounce más largo para evitar solapamiento
 const INTERRUPT_DEBOUNCE_MS = 300; // debounce reducido para interrupciones
 

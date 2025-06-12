@@ -149,7 +149,7 @@ export default function ConversationalAvatar() {
       if (apiConfig) {
         console.log('🎯 Creating new D-ID controller and sending to avatar');
         
-        // Check if WebRTC connection is still valid, reconnect if needed
+        // Asegura WebRTC antes de cada envío
         if (!connectionState || connectionState === 'failed' || connectionState === 'disconnected') {
           console.log('🔄 WebRTC connection lost, reconnecting...');
           try {
@@ -162,10 +162,10 @@ export default function ConversationalAvatar() {
           }
         }
         
-        // Only abort if avatar is currently talking to prevent killing new clips
+        // Aborta el clip SÓLO si sigue sonando
         if (isAvatarTalking && didAbortController.current) {
           didAbortController.current.abort();
-          didAbortController.current = null;
+          didAbortController.current = null;     // evita matar el clip nuevo
         }
         
         const controller = new AbortController();
@@ -472,7 +472,7 @@ export default function ConversationalAvatar() {
       if (videoRef.current) videoRef.current.style.opacity = '1';
       if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
       // Clean abort controller when clip finishes
-      didAbortController.current = null;
+      didAbortController.current = null;       // 🧹 listo para el próximo turno
     } else if (streamEvent === 'started') {
       setIsAvatarTalking(true);
       console.log('🗣️ Avatar started speaking');
