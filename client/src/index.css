@@ -231,6 +231,44 @@
   50% { transform: scaleY(1); opacity: 1; }
 }
 
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  /* Reduce motion for better performance on mobile */
+  @media (prefers-reduced-motion: no-preference) {
+    .animated {
+      animation-duration: 0.5s;
+    }
+  }
+  
+  /* Optimize scrolling areas for mobile */
+  .conversation-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Improve button touch targets */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Optimize text rendering on mobile */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Safe area support for mobile devices with notches */
+@supports (padding: max(0px)) {
+  .mobile-safe-area {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
 /* Animate in utility */
 .animate-in {
   animation: fadeIn 0.3s ease-out;
