@@ -22,6 +22,12 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  
+  // Create ref to track avatar speaking state
+  const isAvatarSpeakingRef = useRef<boolean>(false);
+  
+  // Update ref whenever isAvatarSpeaking changes
+  isAvatarSpeakingRef.current = isAvatarSpeaking || false;
   const recordingChunksRef = useRef<Blob[]>([]);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSpeakingRef = useRef(false);
@@ -99,8 +105,9 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     }
     
     // Use fixed threshold during avatar speech for reliable interruption detection
+    const currentAvatarSpeaking = isAvatarSpeakingRef.current;
     let finalThreshold;
-    if (isAvatarSpeaking) {
+    if (currentAvatarSpeaking) {
       // Fixed lower threshold during avatar speech for better interruption detection
       finalThreshold = 6.0; // Fixed threshold for barge-in as per PRD requirements
     } else {
@@ -113,14 +120,14 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     const currentlyRecording = isRecordingRef.current;
     
     // Debug logging for troubleshooting - MORE VERBOSE
-    if (isAvatarSpeaking || level > finalThreshold - 2) {
-      const mode = isAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
-      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}, AvatarSpeaking: ${isAvatarSpeaking}`);
+    if (currentAvatarSpeaking || level > finalThreshold - 2) {
+      const mode = currentAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
+      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}, AvatarSpeaking: ${currentAvatarSpeaking}`);
     }
     
     // Additional debug for barge-in detection
-    if (isAvatarSpeaking && level > 3.0) {
-      console.log(`🔥 BARGE-IN CHECK: AvatarSpeaking=${isAvatarSpeaking}, Level=${level.toFixed(1)}, Recording=${currentlyRecording}, Threshold=5.0`);
+    if (currentAvatarSpeaking && level > 3.0) {
+      console.log(`🔥 BARGE-IN CHECK: AvatarSpeaking=${currentAvatarSpeaking}, Level=${level.toFixed(1)}, Recording=${currentlyRecording}, Threshold=5.0`);
     }
 
     // Store in pre-roll buffer (ring buffer)
@@ -144,7 +151,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     }
 
     // Immediate barge-in detection during avatar speech - VERY LOW THRESHOLD
-    if (isAvatarSpeaking && !currentlyRecording && level > 5.0) {
+    if (currentAvatarSpeaking && !currentlyRecording && level > 5.0) {
       console.log(`🚨 IMMEDIATE BARGE-IN DETECTED: level=${level.toFixed(1)}, avatar speaking, triggering ABORT!`);
       
       // Call the interrupt function directly - this should trigger the same abort as the Stop button
