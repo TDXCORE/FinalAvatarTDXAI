@@ -1,12 +1,13 @@
 import { useRef, useCallback } from 'react';
 import { CONFIG } from '@/lib/config';
 
-// VAD Parameters optimized for complete phrase detection
-const OPEN_FRAMES = 2;      // más sensible para detectar inicio rápido
-const CLOSE_FRAMES = 25;    // más tiempo antes de cerrar (~750 ms)
-const PRE_ROLL_MS = 400;    // buffer más largo para capturar inicio
-const THRESHOLD = 25;       // umbral más bajo para mejor detección
-const MIN_RECORDING_MS = 800; // mínimo tiempo de grabación para frases completas
+// VAD Parameters tuned for accurate speech detection
+const OPEN_FRAMES = 4;      // más estricto para evitar falsos positivos
+const CLOSE_FRAMES = 30;    // más tiempo de silencio antes de procesar (~1 segundo)
+const PRE_ROLL_MS = 300;    // buffer suficiente sin exceso
+const THRESHOLD = 35;       // umbral más alto para evitar ruido
+const MIN_RECORDING_MS = 1200; // tiempo mínimo más largo para frases completas
+const DEBOUNCE_MS = 500;    // tiempo de espera antes de procesar nueva grabación
 
 interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;
@@ -30,6 +31,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
   const preRollBufferRef = useRef<number[]>([]);
   const bufferedFramesRef = useRef<number[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
+  const lastProcessedTimeRef = useRef<number>(0);
+  const isProcessingRef = useRef(false);
 
   const buildWavFromBuffer = useCallback((audioData: number[]): Blob => {
     // Simple WAV creation from audio buffer
@@ -73,26 +76,48 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     const dataArray = new Uint8Array(bufferLength);
     analyserRef.current.getByteFrequencyData(dataArray);
 
-    // Better speech detection using frequency analysis
-    // Focus on speech frequency range (300Hz - 3400Hz)
-    const speechStart = Math.floor((300 / 8000) * bufferLength); // 8kHz Nyquist
-    const speechEnd = Math.floor((3400 / 8000) * bufferLength);
+    // Advanced speech detection using multiple frequency bands
+    const sampleRate = audioContextRef.current?.sampleRate || 44100;
+    const nyquist = sampleRate / 2;
     
-    let speechEnergy = 0;
+    // Define frequency bands for human speech
+    const lowSpeechStart = Math.floor((85 / nyquist) * bufferLength);   // Fundamental frequency low
+    const lowSpeechEnd = Math.floor((255 / nyquist) * bufferLength);    // Fundamental frequency high
+    const midSpeechStart = Math.floor((255 / nyquist) * bufferLength);  // Formant frequencies start
+    const midSpeechEnd = Math.floor((2000 / nyquist) * bufferLength);   // Formant frequencies end
+    const highSpeechStart = Math.floor((2000 / nyquist) * bufferLength); // High frequency speech
+    const highSpeechEnd = Math.floor((4000 / nyquist) * bufferLength);   // High frequency speech end
+    
+    let lowSpeechEnergy = 0;
+    let midSpeechEnergy = 0;
+    let highSpeechEnergy = 0;
     let totalEnergy = 0;
+    let noiseEnergy = 0;
     
     for (let i = 0; i < bufferLength; i++) {
-      totalEnergy += dataArray[i];
-      if (i >= speechStart && i <= speechEnd) {
-        speechEnergy += dataArray[i];
+      const value = dataArray[i];
+      totalEnergy += value;
+      
+      if (i >= lowSpeechStart && i < lowSpeechEnd) {
+        lowSpeechEnergy += value;
+      } else if (i >= midSpeechStart && i < midSpeechEnd) {
+        midSpeechEnergy += value * 1.5; // Weight formant frequencies more
+      } else if (i >= highSpeechStart && i < highSpeechEnd) {
+        highSpeechEnergy += value;
+      } else {
+        noiseEnergy += value;
       }
     }
     
-    const speechRatio = speechEnergy / totalEnergy;
+    // Calculate speech characteristics
+    const speechEnergy = lowSpeechEnergy + midSpeechEnergy + highSpeechEnergy;
+    const speechRatio = totalEnergy > 0 ? speechEnergy / totalEnergy : 0;
+    const noiseRatio = totalEnergy > 0 ? noiseEnergy / totalEnergy : 0;
     const average = totalEnergy / bufferLength;
     
-    // Voice detected if sufficient energy in speech frequencies
-    const level = average * speechRatio * 2; // Boost speech frequency content
+    // Speech detected if good speech-to-noise ratio and sufficient energy
+    const speechScore = speechRatio - (noiseRatio * 0.5);
+    const level = average * Math.max(0, speechScore) * 1.5;
 
     // Store in pre-roll buffer (ring buffer)
     preRollBufferRef.current.push(...Array.from(dataArray).map(v => v / 255));
@@ -143,19 +168,29 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     // Stop recording when enough cold frames detected AND minimum duration met
     if (recording && coldFramesRef.current >= CLOSE_FRAMES) {
       const recordingDuration = Date.now() - recordingStartTimeRef.current;
+      const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
-      // Only stop if we've recorded for minimum duration
-      if (recordingDuration >= MIN_RECORDING_MS) {
+      // Only stop if we've recorded for minimum duration AND not currently processing AND debounce period passed
+      if (recordingDuration >= MIN_RECORDING_MS && !isProcessingRef.current && timeSinceLastProcessed >= DEBOUNCE_MS) {
         isSpeakingRef.current = false;
         isRecordingRef.current = false;
+        isProcessingRef.current = true;
         
         // Build audio blob with pre-roll + buffered frames
         const allAudioData = [...preRollBufferRef.current, ...bufferedFramesRef.current];
         const audioBlob = buildWavFromBuffer(allAudioData);
         
         if (audioBlob.size > 0) {
-          console.log(`🔇 Complete phrase detected - processing ${recordingDuration}ms of audio`);
-          onSpeechEnd(audioBlob);
+          console.log(`🔇 Processing complete phrase: ${recordingDuration}ms audio`);
+          lastProcessedTimeRef.current = Date.now();
+          
+          // Process audio and reset processing flag after callback
+          setTimeout(() => {
+            onSpeechEnd(audioBlob);
+            isProcessingRef.current = false;
+          }, 100);
+        } else {
+          isProcessingRef.current = false;
         }
         
         // Reset buffers
@@ -172,10 +207,18 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
             // MediaRecorder might already be stopped
           }
         }
-      } else {
+      } else if (recordingDuration < MIN_RECORDING_MS) {
         // Reset cold frames counter if minimum duration not met
         coldFramesRef.current = 0;
-        console.log(`⏳ Still recording - ${recordingDuration}ms so far (need ${MIN_RECORDING_MS}ms minimum)`);
+        console.log(`⏳ Continuing recording - ${recordingDuration}ms so far`);
+      } else if (isProcessingRef.current) {
+        // If currently processing, wait
+        coldFramesRef.current = 0;
+        console.log(`⏳ Waiting for processing to complete`);
+      } else if (timeSinceLastProcessed < DEBOUNCE_MS) {
+        // If debounce period not met, wait
+        coldFramesRef.current = 0;
+        console.log(`⏳ Debounce period active`);
       }
     }
 
@@ -294,6 +337,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     preRollBufferRef.current = [];
     bufferedFramesRef.current = [];
     recordingStartTimeRef.current = 0;
+    lastProcessedTimeRef.current = 0;
+    isProcessingRef.current = false;
 
     console.log('🔌 Voice Activity Detection stopped');
   }, []);

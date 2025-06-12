@@ -11,6 +11,8 @@ export function useSTT({ onTranscription }: UseSTTProps) {
   const audioStreamRef = useRef<MediaStream | null>(null);
   const sttWebSocketRef = useRef<WebSocket | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const isProcessingRef = useRef(false);
+  const audioQueueRef = useRef<Blob[]>([]);
 
   const initializeAudio = useCallback(async () => {
     try {
@@ -79,7 +81,16 @@ export function useSTT({ onTranscription }: UseSTTProps) {
     }
   }, [onTranscription]);
 
-  const processAudioWithGroq = useCallback(async (audioBlob: Blob) => {
+  const processAudioQueue = useCallback(async () => {
+    if (isProcessingRef.current || audioQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingRef.current = true;
+    const audioBlob = audioQueueRef.current.shift()!;
+    
+    console.log(`📦 Processing voice input: ${audioBlob.size} bytes`);
+    
     try {
       const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
       if (!groqApiKey) {
@@ -87,10 +98,11 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       }
 
       const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('file', audioBlob, 'audio.wav');
       formData.append('model', 'whisper-large-v3');
       formData.append('response_format', 'json');
       formData.append('language', 'es');
+      formData.append('temperature', '0');
 
       const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
@@ -105,13 +117,35 @@ export function useSTT({ onTranscription }: UseSTTProps) {
       }
 
       const data = await response.json();
-      if (data.text) {
-        onTranscription(data.text, true);
+      const transcription = data.text?.trim() || '';
+      
+      if (transcription && transcription.length > 2) {
+        console.log('🎯 Voice transcription:', transcription);
+        onTranscription(transcription, true);
+      } else {
+        console.log('🔇 Empty or invalid transcription, skipping');
       }
     } catch (error) {
       console.error('Groq STT processing failed:', error);
+    } finally {
+      isProcessingRef.current = false;
+      
+      // Process next item in queue after delay
+      setTimeout(() => {
+        processAudioQueue();
+      }, 200);
     }
   }, [onTranscription]);
+
+  const processAudioWithGroq = useCallback(async (audioBlob: Blob) => {
+    // Add to queue instead of processing immediately
+    audioQueueRef.current.push(audioBlob);
+    
+    // Start processing if not already running
+    if (!isProcessingRef.current) {
+      processAudioQueue();
+    }
+  }, [processAudioQueue]);
 
   const startRecording = useCallback(async () => {
     if (!isInitialized) {
