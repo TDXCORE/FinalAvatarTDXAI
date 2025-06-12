@@ -20,7 +20,7 @@ export async function connectToGroqSTT(model: string = 'whisper-large-v3'): Prom
   });
 }
 
-export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile') {
+export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile', abortController?: AbortController) {
   try {
     if (!GROQ_API_KEY) {
       throw new Error('GROQ API key not configured');
@@ -42,7 +42,8 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
         top_p: 0.9,       // Optimized for conversation
         stream: false,    // Keep simple for now
         stop: ["\n\n", "Usuario:", "User:"] // Stop tokens for conversation
-      })
+      }),
+      signal: abortController?.signal
     });
 
     console.log('Groq LLM Response status:', response.status);

@@ -101,7 +101,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     let finalThreshold;
     if (isAvatarSpeaking) {
       // Fixed lower threshold during avatar speech for better interruption detection
-      finalThreshold = Math.max(THRESHOLD, 8);
+      finalThreshold = 6.0; // Fixed threshold for barge-in as per PRD requirements
     } else {
       // Adaptive threshold for normal speech detection
       const adaptiveThreshold = backgroundLevelRef.current + 2;

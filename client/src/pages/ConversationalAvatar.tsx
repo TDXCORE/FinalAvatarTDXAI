@@ -23,7 +23,7 @@ export default function ConversationalAvatar() {
   const [latency, setLatency] = useState<number | null>(null);
   const [apiConfig, setApiConfig] = useState<any>(null);
   const [latencyStart, setLatencyStart] = useState<number | null>(null);
-  const [pipelineState, setPipelineState] = useState<'idle' | 'processing'>('idle');
+  const [pipelineState, setPipelineState] = useState<'idle' | 'processing' | 'thinking'>('idle');
   
   // Abort controllers and refs for cleanup
   const abortRef = useRef<() => void>(() => {});
@@ -214,8 +214,12 @@ export default function ConversationalAvatar() {
   };
 
   const processUserMessage = async (userMessage: string) => {
+    const currentTurnId = turnId.current;
+    console.log('Processing user message:', userMessage, 'turnId:', currentTurnId);
+    
     setLatencyStart(Date.now());
     addConversationMessage('user', userMessage);
+    setPipelineState('thinking');
     
     // Build messages with current history plus new user message
     const messages = [
@@ -235,7 +239,18 @@ export default function ConversationalAvatar() {
       }
     ];
 
-    await sendToLLM(messages);
+    // Create abort controller for LLM request
+    llmAbortController.current = new AbortController();
+    
+    // Add thinking delay with visual feedback
+    thinkingTimer.current = setTimeout(() => {
+      // Check if turn is still valid
+      if (turnId.current === currentTurnId && pipelineState !== 'idle') {
+        sendToLLM(messages, llmAbortController.current || undefined);
+      } else {
+        console.log('Turn invalidated, skipping LLM request');
+      }
+    }, 1500);
   };
 
   const handleConnect = async () => {
