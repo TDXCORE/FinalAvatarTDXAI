@@ -237,24 +237,24 @@ export default function ConversationalAvatar() {
   }, [streamEvent, latencyStart]);
 
   return (
-    <div className="min-h-screen bg-dark-slate font-inter text-slate-200">
+    <div className="min-h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-x-hidden">
       {/* Header */}
-      <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 px-4 sm:px-6 py-3 sm:py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+      <header className="w-full bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 mobile-safe-area">
+        <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
               <span className="text-white font-bold text-xs sm:text-sm">AI</span>
             </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-semibold text-white">Alex</h1>
-              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block">D-ID AI Assistant</p>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg md:text-xl font-semibold text-white truncate">Alex</h1>
+              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block truncate">D-ID AI Assistant</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2 sm:space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
             <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
-              <span className="text-slate-300 hidden sm:inline">{isConnected ? 'Connected' : 'Ready'}</span>
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+              <span className="text-slate-300 hidden sm:inline whitespace-nowrap">{isConnected ? 'Connected' : 'Ready'}</span>
               <span className="text-slate-300 sm:hidden">{isConnected ? '●' : '○'}</span>
             </div>
           </div>
@@ -262,10 +262,10 @@ export default function ConversationalAvatar() {
       </header>
 
       {/* Main Content */}
-      <main className="flex flex-col lg:flex-row flex-1 min-h-0">
+      <main className="flex flex-col lg:flex-row flex-1 w-full min-h-0 relative">
         {/* Avatar Section */}
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-          <div className="max-w-2xl w-full">
+        <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 w-full lg:w-auto">
+          <div className="max-w-2xl w-full mx-auto">
             <AvatarVideo
               videoRef={videoRef}
               idleVideoRef={idleVideoRef}
@@ -293,14 +293,16 @@ export default function ConversationalAvatar() {
         </div>
 
         {/* Conversation Panel */}
-        <ConversationPanel
-          conversationHistory={conversationHistory}
-          currentTranscription={currentTranscription}
-          isRecording={isRecording}
-          isConnected={isConnected}
-          apiConfig={apiConfig}
-          onManualSend={handleManualSend}
-        />
+        <div className="w-full lg:w-96 lg:flex-shrink-0">
+          <ConversationPanel
+            conversationHistory={conversationHistory}
+            currentTranscription={currentTranscription}
+            isRecording={isRecording}
+            isConnected={isConnected}
+            apiConfig={apiConfig}
+            onManualSend={handleManualSend}
+          />
+        </div>
       </main>
     </div>
   );

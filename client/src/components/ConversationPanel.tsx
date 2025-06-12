@@ -66,11 +66,11 @@ export default function ConversationPanel({
   };
 
   return (
-    <div className="w-full lg:w-96 bg-slate-800/50 backdrop-blur-sm border-t lg:border-l lg:border-t-0 border-slate-700 flex flex-col max-h-[50vh] lg:max-h-none">
+    <div className="w-full h-full bg-slate-800/50 backdrop-blur-sm border-t lg:border-l lg:border-t-0 border-slate-700 flex flex-col max-h-[60vh] lg:max-h-none mobile-safe-area">
       {/* Panel Header */}
-      <div className="p-3 sm:p-4 lg:p-6 border-b border-slate-700">
-        <h2 className="text-base sm:text-lg font-semibold text-white mb-1 sm:mb-2">Conversation</h2>
-        <p className="text-xs sm:text-sm text-slate-400">Real-time AI conversation with Alex</p>
+      <div className="p-3 sm:p-4 lg:p-6 border-b border-slate-700 flex-shrink-0">
+        <h2 className="text-base sm:text-lg font-semibold text-white mb-1 sm:mb-2 truncate">Conversation</h2>
+        <p className="text-xs sm:text-sm text-slate-400 truncate">Real-time AI conversation with Alex</p>
       </div>
 
       {/* Conversation History */}
