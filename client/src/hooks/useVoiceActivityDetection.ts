@@ -108,10 +108,13 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       finalThreshold = Math.max(adaptiveThreshold, THRESHOLD);
     }
     
+    // Get current recording state
+    const currentlyRecording = isRecordingRef.current;
+    
     // Debug logging for troubleshooting
     if (level > finalThreshold - 2) {
       const mode = isAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
-      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}`);
+      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}, Recording: ${currentlyRecording}, HotFrames: ${hotFramesRef.current}`);
     }
 
     // Store in pre-roll buffer (ring buffer)
@@ -122,9 +125,6 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
 
     // Store current frame for potential recording
     bufferedFramesRef.current.push(...Array.from(dataArray).map(v => v / 255));
-
-    // Histéresis logic - replaces fixed threshold
-    const recording = isRecordingRef.current;
     
     if (!recording && level > finalThreshold) {
       hotFramesRef.current++;
@@ -137,13 +137,15 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       if (recording) coldFramesRef.current = 0;
     }
 
-    // Start recording when enough hot frames detected
-    if (!recording && hotFramesRef.current >= OPEN_FRAMES) {
+    // Start recording when enough hot frames detected OR immediate barge-in
+    if (!recording && (hotFramesRef.current >= OPEN_FRAMES || (isAvatarSpeaking && level > 8.0))) {
       const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
       // Special case: During avatar speech, allow immediate interruption (barge-in)
-      const allowBargeIn = isAvatarSpeaking && level > 6.0;
+      const allowBargeIn = isAvatarSpeaking && level > 8.0; // Higher threshold for clear interruption
       const normalDetection = !isProcessingRef.current && timeSinceLastProcessed >= DEBOUNCE_MS;
+      
+      console.log(`🎯 Detection check: isAvatarSpeaking=${isAvatarSpeaking}, level=${level.toFixed(1)}, allowBargeIn=${allowBargeIn}, normalDetection=${normalDetection}, hotFrames=${hotFramesRef.current}`);
       
       if (allowBargeIn || normalDetection) {
         isSpeakingRef.current = true;
