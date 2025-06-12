@@ -76,48 +76,14 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     const dataArray = new Uint8Array(bufferLength);
     analyserRef.current.getByteFrequencyData(dataArray);
 
-    // Advanced speech detection using multiple frequency bands
-    const sampleRate = audioContextRef.current?.sampleRate || 44100;
-    const nyquist = sampleRate / 2;
+    // Simple and reliable voice detection
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
+    const level = average;
     
-    // Define frequency bands for human speech
-    const lowSpeechStart = Math.floor((85 / nyquist) * bufferLength);   // Fundamental frequency low
-    const lowSpeechEnd = Math.floor((255 / nyquist) * bufferLength);    // Fundamental frequency high
-    const midSpeechStart = Math.floor((255 / nyquist) * bufferLength);  // Formant frequencies start
-    const midSpeechEnd = Math.floor((2000 / nyquist) * bufferLength);   // Formant frequencies end
-    const highSpeechStart = Math.floor((2000 / nyquist) * bufferLength); // High frequency speech
-    const highSpeechEnd = Math.floor((4000 / nyquist) * bufferLength);   // High frequency speech end
-    
-    let lowSpeechEnergy = 0;
-    let midSpeechEnergy = 0;
-    let highSpeechEnergy = 0;
-    let totalEnergy = 0;
-    let noiseEnergy = 0;
-    
-    for (let i = 0; i < bufferLength; i++) {
-      const value = dataArray[i];
-      totalEnergy += value;
-      
-      if (i >= lowSpeechStart && i < lowSpeechEnd) {
-        lowSpeechEnergy += value;
-      } else if (i >= midSpeechStart && i < midSpeechEnd) {
-        midSpeechEnergy += value * 1.5; // Weight formant frequencies more
-      } else if (i >= highSpeechStart && i < highSpeechEnd) {
-        highSpeechEnergy += value;
-      } else {
-        noiseEnergy += value;
-      }
+    // Debug logging for troubleshooting
+    if (level > 10) {
+      console.log(`🎵 Audio level: ${level.toFixed(1)} (threshold: ${THRESHOLD})`);
     }
-    
-    // Calculate speech characteristics
-    const speechEnergy = lowSpeechEnergy + midSpeechEnergy + highSpeechEnergy;
-    const speechRatio = totalEnergy > 0 ? speechEnergy / totalEnergy : 0;
-    const noiseRatio = totalEnergy > 0 ? noiseEnergy / totalEnergy : 0;
-    const average = totalEnergy / bufferLength;
-    
-    // Speech detected if good speech-to-noise ratio and sufficient energy
-    const speechScore = speechRatio - (noiseRatio * 0.5);
-    const level = average * Math.max(0, speechScore) * 1.5;
 
     // Store in pre-roll buffer (ring buffer)
     preRollBufferRef.current.push(...Array.from(dataArray).map(v => v / 255));
