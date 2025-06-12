@@ -55,8 +55,10 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
     }
 
     const data = await response.json();
-    console.log('Groq LLM Response data:', data);
-    return data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+    console.log('🧠 Groq LLM Full Response:', data);
+    const content = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+    console.log('🧠 Extracted content:', content);
+    return content;
   } catch (error) {
     console.error('Groq LLM API error:', error);
     throw error;

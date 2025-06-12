@@ -354,12 +354,21 @@ export function useWebRTC() {
   }, [sessionId, streamId, stopAllStreams, closePC]);
 
   const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
+    console.log('🎯 sendStreamText called with:', text);
+    console.log('🎯 WebSocket state:', !!webSocketRef.current);
+    console.log('🎯 StreamId:', streamId);
+    console.log('🎯 SessionId:', sessionId);
+    
     if (!webSocketRef.current || !streamId || !sessionId) {
-      console.error('D-ID connection not ready');
+      console.error('❌ D-ID connection not ready - missing:', {
+        webSocket: !!webSocketRef.current,
+        streamId: !!streamId,
+        sessionId: !!sessionId
+      });
       return;
     }
 
-    console.log('Sending text to D-ID avatar:', text);
+    console.log('🎯 Sending text to D-ID avatar:', text);
 
     const streamMessage = {
       type: 'stream-text',
