@@ -70,23 +70,20 @@ export default function ConversationalAvatar() {
     console.log('🛑 Avatar talking state:', isAvatarTalking);
     console.log('🛑 Pipeline state:', pipelineState);
     
-    // 1. FORCE STOP VIDEO IMMEDIATELY
+    // 1. GENTLY STOP VIDEO (don't disconnect completely)
     if (videoRef.current) {
-      console.log('🛑 FORCE stopping main video element');
+      console.log('🛑 Pausing main video element');
       videoRef.current.pause();
-      videoRef.current.currentTime = 0;
       videoRef.current.style.opacity = '0';
-      videoRef.current.style.display = 'none';
-      
-      // Remove video source to completely stop playback
-      videoRef.current.src = '';
-      videoRef.current.srcObject = null;
+      // Don't remove src or srcObject to maintain connection
     }
     
     if (idleVideoRef.current) {
       console.log('🛑 Showing idle video');
       idleVideoRef.current.style.opacity = '1';
       idleVideoRef.current.style.display = 'block';
+      // Ensure idle video is playing
+      idleVideoRef.current.play().catch(e => console.log('Idle video play failed:', e));
     }
     
     // 2. Stop D-ID connection aggressively
@@ -95,8 +92,8 @@ export default function ConversationalAvatar() {
       didAbortController.current.abort();
     }
     
-    // Force stop WebRTC streams
-    interruptStream();
+    // Don't force stop WebRTC streams completely - just interrupt current stream
+    // interruptStream(); // Comment out to maintain connection
     
     // 3. LLM stream
     if (llmAbortController.current) {
@@ -125,10 +122,10 @@ export default function ConversationalAvatar() {
     // Restore video element after short delay to allow for new streams
     setTimeout(() => {
       if (videoRef.current) {
-        videoRef.current.style.display = 'block';
+        videoRef.current.style.opacity = '1';
         console.log('🔄 Video element restored for future use');
       }
-    }, 1000);
+    }, 500);
   }, [videoRef, idleVideoRef, isAvatarTalking, pipelineState, interruptStream]);
 
   // Make abortTurn available to other components
