@@ -235,20 +235,7 @@ export default function ConversationalAvatar() {
     initializeApp();
   }, []); // Remove dependencies to prevent loop
 
-  useEffect(() => {
-    // Listen for custom events from test script
-    const handleSendStreamText = (event: any) => {
-      if (apiConfig) {
-        sendStreamText(event.detail);
-      }
-    };
 
-    window.addEventListener('sendStreamText', handleSendStreamText);
-
-    return () => {
-      window.removeEventListener('sendStreamText', handleSendStreamText);
-    };
-  }, [apiConfig, sendStreamText]);
 
   const addConversationMessage = (role: 'user' | 'assistant' | 'system', content: string) => {
     const message = {
@@ -337,6 +324,47 @@ export default function ConversationalAvatar() {
       addConversationMessage('system', 'Detección de voz detenida.');
     }
   };
+
+  // Add test event listeners after processUserMessage is declared
+  useEffect(() => {
+    const handleSendStreamText = (event: any) => {
+      if (apiConfig) {
+        sendStreamText(event.detail.text);
+      }
+    };
+
+    const handleVoiceTranscription = (event: any) => {
+      if (event.detail.text && event.detail.isFinal) {
+        processUserMessage(event.detail.text);
+      }
+    };
+
+    const handleManualInterrupt = () => {
+      if (abortRef.current) {
+        console.log('🧪 Test: Triggering manual interrupt');
+        abortRef.current();
+      }
+    };
+
+    const handleVoiceInterrupt = () => {
+      if (abortRef.current) {
+        console.log('🧪 Test: Triggering voice interrupt (barge-in)');
+        abortRef.current();
+      }
+    };
+
+    window.addEventListener('test-send-stream-text', handleSendStreamText);
+    window.addEventListener('test-voice-transcription', handleVoiceTranscription);
+    window.addEventListener('test-manual-interrupt', handleManualInterrupt);
+    window.addEventListener('test-voice-interrupt', handleVoiceInterrupt);
+
+    return () => {
+      window.removeEventListener('test-send-stream-text', handleSendStreamText);
+      window.removeEventListener('test-voice-transcription', handleVoiceTranscription);
+      window.removeEventListener('test-manual-interrupt', handleManualInterrupt);
+      window.removeEventListener('test-voice-interrupt', handleVoiceInterrupt);
+    };
+  }, [apiConfig, sendStreamText, processUserMessage]);
 
   const handleDisconnect = () => {
     disconnectWebRTC();
