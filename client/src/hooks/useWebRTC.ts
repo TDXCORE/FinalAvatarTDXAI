@@ -381,17 +381,37 @@ export function useWebRTC() {
     // Store abort controller for potential interruption
     if (abortController && abortController.signal) {
       abortController.signal.addEventListener('abort', () => {
-        console.log('🛑 D-ID stream aborted');
+        console.log('🛑 D-ID stream aborted - stopping video immediately');
+        
+        // Immediately stop video
         if (videoRef.current) {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
+          videoRef.current.style.opacity = '0';
+        }
+        
+        // Show idle video
+        if (idleVideoRef.current) {
+          idleVideoRef.current.style.opacity = '1';
+        }
+        
+        // Send stop message to D-ID if websocket is available
+        if (webSocketRef.current && sessionId && streamId) {
+          const stopMessage = {
+            type: 'stream-destroy',
+            payload: {
+              session_id: sessionId,
+              stream_id: streamId
+            }
+          };
+          sendMessage(webSocketRef.current, stopMessage);
         }
       });
     }
 
     sendMessage(webSocketRef.current, streamMessage);
     console.log('Text message sent to D-ID');
-  }, [streamId, sessionId, videoRef]);
+  }, [streamId, sessionId, videoRef, idleVideoRef]);
 
   const stopVideo = useCallback(() => {
     // Immediately stop video playback

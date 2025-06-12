@@ -137,15 +137,20 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       if (recording) coldFramesRef.current = 0;
     }
 
-    // Start recording when enough hot frames detected AND not currently processing
-    if (!recording && !isProcessingRef.current && hotFramesRef.current >= OPEN_FRAMES) {
+    // Start recording when enough hot frames detected
+    if (!recording && hotFramesRef.current >= OPEN_FRAMES) {
       const timeSinceLastProcessed = Date.now() - lastProcessedTimeRef.current;
       
-      // Only start if debounce period has passed
-      if (timeSinceLastProcessed >= DEBOUNCE_MS) {
+      // Special case: During avatar speech, allow immediate interruption (barge-in)
+      const allowBargeIn = isAvatarSpeaking && level > 6.0;
+      const normalDetection = !isProcessingRef.current && timeSinceLastProcessed >= DEBOUNCE_MS;
+      
+      if (allowBargeIn || normalDetection) {
         isSpeakingRef.current = true;
         isRecordingRef.current = true;
         recordingStartTimeRef.current = Date.now();
+        
+        // Call onSpeechStart for barge-in detection
         onSpeechStart?.();
         
         // Clear any existing timeout
@@ -163,9 +168,11 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
         
         hotFramesRef.current = 0;
       } else {
-        // Reset frames if debounce period not met
+        // Reset frames if conditions not met
         hotFramesRef.current = 0;
-        console.log(`⏳ Debounce active - ${timeSinceLastProcessed}ms since last processing`);
+        if (!isAvatarSpeaking) {
+          console.log(`⏳ Debounce active - ${timeSinceLastProcessed}ms since last processing`);
+        }
       }
     }
 

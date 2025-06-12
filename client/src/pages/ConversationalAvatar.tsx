@@ -67,26 +67,41 @@ export default function ConversationalAvatar() {
   // Centralized abort function - the "red button"
   const abortTurn = useCallback(() => {
     console.log('🛑 ABORT TURN - Stopping all processes');
+    console.log('🛑 Avatar talking state:', isAvatarTalking);
+    console.log('🛑 Pipeline state:', pipelineState);
     
     // 1. D-ID video/stream
     if (videoRef.current) {
+      console.log('🛑 Stopping main video element');
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
       videoRef.current.style.opacity = '0';
     }
     if (idleVideoRef.current) {
+      console.log('🛑 Showing idle video');
       idleVideoRef.current.style.opacity = '1';
     }
-    didAbortController.current?.abort();
+    
+    if (didAbortController.current) {
+      console.log('🛑 Aborting D-ID controller');
+      didAbortController.current.abort();
+    }
     
     // 2. LLM stream
-    llmAbortController.current?.abort();
+    if (llmAbortController.current) {
+      console.log('🛑 Aborting LLM controller');
+      llmAbortController.current.abort();
+    }
     
     // 3. STT stream  
-    sttAbortController.current?.abort();
+    if (sttAbortController.current) {
+      console.log('🛑 Aborting STT controller');
+      sttAbortController.current.abort();
+    }
     
     // 4. Timers and state cleanup
     if (thinkingTimer.current) {
+      console.log('🛑 Clearing thinking timer');
       clearTimeout(thinkingTimer.current);
       thinkingTimer.current = null;
     }
@@ -94,8 +109,8 @@ export default function ConversationalAvatar() {
     setIsAvatarTalking(false);
     setPipelineState('idle');
     
-    console.log('🛑 All processes stopped');
-  }, [videoRef, idleVideoRef]);
+    console.log('🛑 All processes stopped - abort complete');
+  }, [videoRef, idleVideoRef, isAvatarTalking, pipelineState]);
 
   // Make abortTurn available to other components
   abortRef.current = abortTurn;
@@ -164,12 +179,16 @@ export default function ConversationalAvatar() {
       }
     },
     onSpeechStart: () => {
-      console.log('🎤 Voice detected, listening...');
+      console.log('🎤 Voice detected, listening... Avatar talking:', isAvatarTalking);
       
       // Barge-in: Stop avatar if talking when user starts speaking
       if (isAvatarTalking) {
-        console.log('🛑 BARGE-IN DETECTED - Calling abort function');
+        console.log('🛑 BARGE-IN DETECTED - Avatar was talking, calling abort function');
+        console.log('🛑 Current video state:', videoRef.current ? 'exists' : 'null');
+        console.log('🛑 Current idle video state:', idleVideoRef.current ? 'exists' : 'null');
         abortRef.current(); // Call centralized abort
+      } else {
+        console.log('🎤 Normal voice detection - avatar not talking');
       }
       
       // Start new recording turn

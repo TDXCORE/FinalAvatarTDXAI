@@ -16,6 +16,7 @@ interface ControlPanelProps {
   onConnect: () => void;
   onStartConversation: () => void;
   onDisconnect: () => void;
+  onTestBargein?: () => void;
 }
 
 export default function ControlPanel({
