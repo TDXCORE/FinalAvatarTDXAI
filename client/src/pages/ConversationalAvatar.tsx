@@ -177,12 +177,17 @@ export default function ConversationalAvatar() {
             const transcription = data.text.trim();
             console.log('🎯 Voice transcription:', transcription);
             
-            // Filter out common artifacts
-            const isArtifact = transcription.toLowerCase().includes('gracias por ver') ||
-                              transcription.toLowerCase().includes('en español') ||
-                              transcription.toLowerCase() === 'gracias';
+            // Filter out common artifacts - but be more lenient for barge-in scenarios
+            const isSimpleArtifact = transcription.toLowerCase() === 'en español' ||
+                                   transcription.toLowerCase() === 'gracias por ver' ||
+                                   transcription.toLowerCase() === 'gracias';
             
-            if (!isArtifact) {
+            // For longer transcriptions, check if they contain meaningful content beyond artifacts
+            const hasRealContent = transcription.split(' ').length > 3 && 
+                                 !transcription.toLowerCase().match(/^(en español\s*)+$/);
+            
+            if (!isSimpleArtifact && (hasRealContent || transcription.split(' ').length <= 3)) {
+              console.log('✅ Processing user message after barge-in:', transcription);
               processUserMessage(transcription);
             } else {
               console.log('🚫 Filtered artifact:', transcription);
@@ -209,7 +214,7 @@ export default function ConversationalAvatar() {
     onInterrupt: () => {
       console.log('🛑 VOICE INTERRUPT DETECTED - Same as Stop button');
       abortRef.current(); // Direct call to abort function - same as Stop button
-      setPipelineState('processing'); // Start new turn after interrupt
+      // Don't set pipeline state here - let the voice processing handle it naturally
     }
   });
 
