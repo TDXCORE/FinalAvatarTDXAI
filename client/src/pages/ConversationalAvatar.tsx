@@ -95,8 +95,8 @@ export default function ConversationalAvatar() {
       didAbortController.current = null;
     }
     
-    // Don't force stop WebRTC streams completely - just interrupt current stream
-    // interruptStream(); // Comment out to maintain connection
+    // 🛑 Reactiva interruptStream para cerrar el stream anterior correctamente
+    interruptStream(); // Necesario para que D-ID acepte nuevas entradas
     
     // 3. LLM stream
     if (llmAbortController.current) {
@@ -129,6 +129,14 @@ export default function ConversationalAvatar() {
         console.log('🔄 Video element restored for future use');
       }
     }, 500);
+
+    // 👇 Fuerza reinicio completo de estado para permitir nuevas respuestas
+    setTimeout(() => {
+      if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
+      if (videoRef.current) videoRef.current.style.opacity = '1';
+      setIsAvatarTalking(false);
+      setPipelineState('idle');
+    }, 500);
   }, [videoRef, idleVideoRef, isAvatarTalking, pipelineState, interruptStream]);
 
   // Make abortTurn available to other components
@@ -140,11 +148,15 @@ export default function ConversationalAvatar() {
       addConversationMessage('assistant', response);
       if (apiConfig) {
         console.log('🎯 Creating new D-ID controller and sending to avatar');
-        // Create new abort controller for this D-ID stream
-        didAbortController.current = new AbortController();
+        // 🔁 Reinicializar didAbortController en cada respuesta
+        if (didAbortController.current) {
+          didAbortController.current.abort(); // limpia anterior
+        }
+        const controller = new AbortController();
+        didAbortController.current = controller;
         setIsAvatarTalking(true);
         console.log('🎯 Calling sendStreamText with response:', response);
-        sendStreamText(response, didAbortController.current);
+        sendStreamText(response, controller);
       } else {
         console.log('❌ No apiConfig available for D-ID');
       }
@@ -436,12 +448,12 @@ export default function ConversationalAvatar() {
 
   // Track avatar talking state based on streaming events
   useEffect(() => {
-    if (streamEvent === 'done' || streamEvent === 'error') {
+    if (['done', 'error', 'stopped'].includes(streamEvent)) {
+      console.log('🔁 Stream finished or error - resetting avatar state');
       setIsAvatarTalking(false);
-      console.log('🔇 Avatar finished speaking - keeping D-ID session active');
-      // Only update pipeline state, don't reset D-ID connection
       setPipelineState('idle');
-      // Don't call softReset - it's interfering with session continuity
+      if (videoRef.current) videoRef.current.style.opacity = '1';
+      if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
     } else if (streamEvent === 'started') {
       setIsAvatarTalking(true);
       console.log('🗣️ Avatar started speaking');

@@ -1,0 +1,107 @@
+Análisis del problema
+didAbortController no se reinicia correctamente:
+
+Cuando haces abort() para detener la primera respuesta, ese controller queda null pero setIsAvatarTalking(false) ocurre después de que D-ID emite stream/finished, causando conflictos.
+
+El streamId o el estado interno de D-ID no se reinicia correctamente:
+
+Tu hook useWebRTC() parece gestionar internamente la llamada a sendStreamText, pero no hay garantía de que se esté cerrando el streamId anterior.
+
+El componente no vuelve a estado listo (isStreamReady = true) tras interrupciones manuales, ya que se omite el evento de cierre.
+
+✅ Solución definitiva (en tu código actual)
+1. 🧼 Limpieza total del estado tras cada abortTurn
+Agrega esta línea al final de la función abortTurn() en ConversationalAvatar.tsx:
+
+ts
+Copiar
+Editar
+// 👇 Fuerza reinicio completo de estado para permitir nuevas respuestas
+setTimeout(() => {
+  if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
+  if (videoRef.current) videoRef.current.style.opacity = '1';
+  setIsAvatarTalking(false);
+  setPipelineState('idle');
+}, 500);
+Esto evita que el sistema se quede en un limbo donde isAvatarTalking = true pero no hay stream activo.
+
+2. 🔁 Reinicializar didAbortController en cada respuesta
+En el callback onResponse del LLM, modifica este fragmento:
+
+ts
+Copiar
+Editar
+// Antes:
+didAbortController.current = new AbortController();
+setIsAvatarTalking(true);
+sendStreamText(response, didAbortController.current);
+
+// Después:
+if (didAbortController.current) {
+  didAbortController.current.abort(); // limpia anterior
+}
+const controller = new AbortController();
+didAbortController.current = controller;
+setIsAvatarTalking(true);
+sendStreamText(response, controller);
+Esto garantiza que no estés reutilizando un AbortController ya cancelado.
+
+3. 🧠 Maneja streamEvent === 'error' como reinicio obligatorio
+En tu efecto que escucha streamEvent, ya tienes esto:
+
+ts
+Copiar
+Editar
+if (streamEvent === 'done' || streamEvent === 'error') {
+  setIsAvatarTalking(false);
+  setPipelineState('idle');
+}
+✅ Asegúrate de que esto siempre se ejecute, incluso después de un abort(). Puedes forzarlo con:
+
+ts
+Copiar
+Editar
+useEffect(() => {
+  if (['done', 'error', 'stopped'].includes(streamEvent)) {
+    console.log('🔁 Stream finished or error - resetting avatar state');
+    setIsAvatarTalking(false);
+    setPipelineState('idle');
+    if (videoRef.current) videoRef.current.style.opacity = '1';
+    if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
+  }
+}, [streamEvent]);
+4. 🛑 Corrige el abort() parcial (actualmente solo pausa video)
+En tu abortTurn(), estás comentando esta línea:
+
+ts
+Copiar
+Editar
+// interruptStream(); // Comment out to maintain connection
+🚨 Debes re-activar esa función si internamente en useWebRTC() estás limpiando el streamId. Si no se interrumpe el stream con interruptStream() o DELETE, D-ID no podrá aceptar una nueva entrada.
+
+Solución:
+
+ts
+Copiar
+Editar
+interruptStream(); // reactiva esta línea
+O dentro de sendStreamText(), asegura que antes de enviar un nuevo mensaje, el stream anterior esté cerrado o reemplazado.
+
+🎯 Conclusión
+Tu sistema funciona correctamente la primera vez porque:
+
+AbortController, streamId, pipelineState y avatarTalking están limpios.
+
+Luego falla porque:
+
+El streamId anterior sigue activo.
+
+El AbortController se recicla mal.
+
+El pipeline nunca vuelve a idle.
+
+Si aplicas estos 4 ajustes:
+✅ abortTurn() limpia correctamente
+✅ streamId y AbortController se renuevan
+✅ isAvatarTalking y pipelineState reflejan el estado real
+✅ streamEvent controla transiciones efectivamente

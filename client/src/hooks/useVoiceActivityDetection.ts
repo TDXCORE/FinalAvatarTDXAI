@@ -5,7 +5,7 @@ import { CONFIG } from '@/lib/config';
 const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
 const CLOSE_FRAMES = 30;    // tiempo extendido para capturar frases completas
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
-const THRESHOLD = 6;        // umbral reducido para detección más sensible de interrupciones
+const THRESHOLD = 3.0;      // umbral optimizado para interrupciones fluidas durante habla del avatar
 const MIN_RECORDING_MS = 1200; // tiempo mínimo extendido para capturar frases completas
 const DEBOUNCE_MS = 1500;   // debounce más largo para evitar solapamiento
 const INTERRUPT_DEBOUNCE_MS = 300; // debounce reducido para interrupciones
