@@ -35,6 +35,7 @@ export default function ConversationalAvatar() {
   const {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
+    softReset,
     sendStreamText,
     interruptStream,
     connectionState,
@@ -367,8 +368,7 @@ export default function ConversationalAvatar() {
   }, [apiConfig, sendStreamText, processUserMessage]);
 
   const handleDisconnect = () => {
-    console.log('🔌 handleDisconnect called - this should only happen when user clicks End button');
-    console.trace('Disconnect call stack trace:');
+    console.log('🔌 Manual disconnect initiated by user');
     disconnectWebRTC();
     stopRecording();
     stopVAD();
@@ -439,11 +439,16 @@ export default function ConversationalAvatar() {
     if (streamEvent === 'done' || streamEvent === 'error') {
       setIsAvatarTalking(false);
       console.log('🔇 Avatar finished speaking');
+      // Use soft reset instead of full disconnect to maintain D-ID session
+      setTimeout(() => {
+        softReset();
+        setPipelineState('idle');
+      }, 100);
     } else if (streamEvent === 'started') {
       setIsAvatarTalking(true);
       console.log('🗣️ Avatar started speaking');
     }
-  }, [streamEvent]);
+  }, [streamEvent, softReset]);
 
   return (
     <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">

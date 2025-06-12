@@ -350,6 +350,7 @@ export function useWebRTC() {
   }, [createPeerConnection, stopAllStreams, closePC]);
 
   const disconnect = useCallback(() => {
+    console.log('🔌 Disconnect initiated - closing D-ID session');
     if (webSocketRef.current) {
       const deleteMessage = {
         type: 'delete-stream',
@@ -374,6 +375,15 @@ export function useWebRTC() {
     setStreamEvent('');
     setStreamingState('empty');
   }, [sessionId, streamId, stopAllStreams, closePC]);
+
+  // Soft reset for maintaining connection between conversations
+  const softReset = useCallback(() => {
+    console.log('🔄 Soft reset - maintaining D-ID connection');
+    // Only reset conversation state, keep connection alive
+    setStreamEvent('');
+    setStreamingState('empty');
+    setIsStreamReady(false);
+  }, []);
 
   const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
     console.log('🎯 sendStreamText called with:', text);
@@ -510,6 +520,7 @@ export function useWebRTC() {
   return {
     connect,
     disconnect,
+    softReset,
     sendStreamText,
     interruptStream,
     connectionState,
