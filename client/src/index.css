@@ -63,6 +63,23 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Prevent zoom on double tap in iOS */
+    touch-action: manipulation;
+    /* Improve scroll performance on mobile */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Improve tap targets for mobile */
+  button, input, select, textarea {
+    touch-action: manipulation;
+  }
+
+  /* Prevent text selection on UI elements */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
   }
 }
 
@@ -177,23 +194,41 @@
   border-radius: 2px;
 }
 
-/* Microphone visualizer bars */
+/* Microphone visualizer bars - Responsive */
 .mic-bar {
-  width: 3px;
-  background: hsl(217, 91%, 60%);
+  background: linear-gradient(to top, #3b82f6, #8b5cf6);
+  border-radius: 2px;
   animation: micPulse 1.5s ease-in-out infinite;
   margin: 0 1px;
 }
 
-.mic-bar:nth-child(1) { height: 10px; animation-delay: 0s; }
-.mic-bar:nth-child(2) { height: 15px; animation-delay: 0.1s; }
-.mic-bar:nth-child(3) { height: 20px; animation-delay: 0.2s; }
-.mic-bar:nth-child(4) { height: 15px; animation-delay: 0.3s; }
-.mic-bar:nth-child(5) { height: 10px; animation-delay: 0.4s; }
+/* Mobile responsive mic bars */
+@media (max-width: 640px) {
+  .mic-bar {
+    width: 2px;
+  }
+  .mic-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+  .mic-bar:nth-child(2) { height: 12px; animation-delay: 0.1s; }
+  .mic-bar:nth-child(3) { height: 16px; animation-delay: 0.2s; }
+  .mic-bar:nth-child(4) { height: 12px; animation-delay: 0.3s; }
+  .mic-bar:nth-child(5) { height: 8px; animation-delay: 0.4s; }
+}
+
+/* Desktop mic bars */
+@media (min-width: 641px) {
+  .mic-bar {
+    width: 3px;
+  }
+  .mic-bar:nth-child(1) { height: 10px; animation-delay: 0s; }
+  .mic-bar:nth-child(2) { height: 15px; animation-delay: 0.1s; }
+  .mic-bar:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+  .mic-bar:nth-child(4) { height: 15px; animation-delay: 0.3s; }
+  .mic-bar:nth-child(5) { height: 10px; animation-delay: 0.4s; }
+}
 
 @keyframes micPulse {
-  0%, 100% { transform: scaleY(0.3); }
-  50% { transform: scaleY(1); }
+  0%, 100% { transform: scaleY(0.3); opacity: 0.6; }
+  50% { transform: scaleY(1); opacity: 1; }
 }
 
 /* Animate in utility */
