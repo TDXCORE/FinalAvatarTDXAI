@@ -3,7 +3,7 @@ import { CONFIG } from '@/lib/config';
 
 // VAD Parameters optimized to prevent duplicate detection
 const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
-const CLOSE_FRAMES = 20;    // tiempo más largo para asegurar fin de frase
+const CLOSE_FRAMES = 30;    // tiempo extendido para capturar frases completas
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
 const THRESHOLD = 8;        // umbral ajustado para niveles observados
 const MIN_RECORDING_MS = 1200; // tiempo mínimo extendido para capturar frases completas
@@ -238,18 +238,23 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
       source.connect(analyserRef.current);
 
       // Set up media recorder for audio capture with optimized settings
-      let mediaRecorderOptions: MediaRecorderOptions = { mimeType: 'audio/wav' };
+      let mediaRecorderOptions: MediaRecorderOptions;
+      let actualMimeType = 'audio/webm';
       
-      // Fallback to webm if wav not supported
-      if (!MediaRecorder.isTypeSupported('audio/wav')) {
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          mediaRecorderOptions = { mimeType: 'audio/webm;codecs=opus' };
-        } else {
-          mediaRecorderOptions = { mimeType: 'audio/webm' };
-        }
+      // Try best audio format for speech recognition
+      if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mediaRecorderOptions = { mimeType: 'audio/wav' };
+        actualMimeType = 'audio/wav';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mediaRecorderOptions = { mimeType: 'audio/webm;codecs=opus' };
+        actualMimeType = 'audio/webm;codecs=opus';
+      } else {
+        mediaRecorderOptions = { mimeType: 'audio/webm' };
+        actualMimeType = 'audio/webm';
       }
       
       const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
+      console.log(`🎙️ MediaRecorder initialized with format: ${actualMimeType}`);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -259,8 +264,6 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
 
       mediaRecorder.onstop = () => {
         if (recordingChunksRef.current.length > 0) {
-          // Use the actual MIME type from MediaRecorder
-          const actualMimeType = mediaRecorderOptions.mimeType || 'audio/webm';
           const audioBlob = new Blob(recordingChunksRef.current, { type: actualMimeType });
           console.log(`📦 Processing voice input: ${audioBlob.size} bytes (${actualMimeType})`);
           onSpeechEnd(audioBlob);
