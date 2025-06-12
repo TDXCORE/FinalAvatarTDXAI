@@ -170,21 +170,16 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
         isRecordingRef.current = false;
         isProcessingRef.current = true;
         
-        // Build audio blob with pre-roll + buffered frames
-        const allAudioData = [...preRollBufferRef.current, ...bufferedFramesRef.current];
-        const audioBlob = buildWavFromBuffer(allAudioData);
-        
-        if (audioBlob.size > 0) {
-          console.log(`🔇 Processing complete phrase: ${recordingDuration}ms audio`);
+        // Stop MediaRecorder - it will handle audio processing via onstop event
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          console.log(`🔇 Stopping MediaRecorder after ${recordingDuration}ms`);
+          mediaRecorderRef.current.stop();
           lastProcessedTimeRef.current = Date.now();
-          
-          // Process audio immediately and prevent overlapping processing
-          onSpeechEnd(audioBlob);
           
           // Set processing flag for longer cooldown period
           setTimeout(() => {
             isProcessingRef.current = false;
-          }, 500);
+          }, 1000);
         } else {
           isProcessingRef.current = false;
         }
@@ -195,10 +190,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
         coldFramesRef.current = 0;
         recordingStartTimeRef.current = 0;
         
-        // Stop MediaRecorder
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-        }
+        // MediaRecorder already stopped above - no additional action needed
       } else if (recordingDuration < MIN_RECORDING_MS) {
         // Reset cold frames counter if minimum duration not met
         coldFramesRef.current = 0;

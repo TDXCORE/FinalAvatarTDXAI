@@ -205,13 +205,19 @@ export function useSTT({ onTranscription }: UseSTTProps) {
         
         console.log(`🔍 Analyzing transcription: "${transcription}" | Similarity: ${similarity.toFixed(2)} | IsArtifact: ${isArtifact}`);
         
-        if (!isDuplicate && !isArtifact) {
+        // Additional safety check - reject if contains any artifact keywords
+        const containsArtifact = /\b(en español|gracias|video|por ver)\b/i.test(transcription);
+        
+        if (!isDuplicate && !isArtifact && !containsArtifact) {
           console.log('🎯 Voice transcription:', transcription);
           lastTranscriptionRef.current = transcription;
           lastTranscriptionTimeRef.current = currentTime;
           onTranscription(transcription, true);
         } else {
-          console.log('🔄 Filtered transcription:', transcription, isDuplicate ? '(duplicate)' : '(artifact)');
+          console.log('🔄 Filtered transcription:', transcription, 
+            isDuplicate ? '(duplicate)' : 
+            isArtifact ? '(artifact)' : 
+            containsArtifact ? '(contains artifact keywords)' : '(other)');
         }
       } else {
         console.log('🔇 Empty or invalid transcription, skipping');
