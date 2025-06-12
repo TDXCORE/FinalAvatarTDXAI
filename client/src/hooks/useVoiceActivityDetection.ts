@@ -126,8 +126,8 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     }
     
     // Additional debug for barge-in detection
-    if (currentAvatarSpeaking && level > 3.0) {
-      console.log(`🔥 BARGE-IN CHECK: AvatarSpeaking=${currentAvatarSpeaking}, Level=${level.toFixed(1)}, Recording=${currentlyRecording}, Threshold=5.0`);
+    if (currentAvatarSpeaking && level > 2.0) {
+      console.log(`🔥 BARGE-IN CHECK: AvatarSpeaking=${currentAvatarSpeaking}, Level=${level.toFixed(1)}, Recording=${currentlyRecording}, Threshold=3.0`);
     }
 
     // Store in pre-roll buffer (ring buffer)
@@ -151,7 +151,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
     }
 
     // Immediate barge-in detection during avatar speech - VERY LOW THRESHOLD
-    if (currentAvatarSpeaking && !currentlyRecording && level > 5.0) {
+    if (currentAvatarSpeaking && !currentlyRecording && level > 3.0) {
       console.log(`🚨 IMMEDIATE BARGE-IN DETECTED: level=${level.toFixed(1)}, avatar speaking, triggering ABORT!`);
       
       // Call the interrupt function directly - this should trigger the same abort as the Stop button
