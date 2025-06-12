@@ -30,11 +30,11 @@ export default function AvatarVideo({
   const idleVideoOpacity = 1 - streamVideoOpacity;
 
   return (
-    <div className="relative">
+    <div className="relative w-full flex flex-col items-center">
       {/* Avatar Container */}
-      <div className="relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 mx-auto mb-4 sm:mb-6 md:mb-8">
+      <div className="relative w-64 h-64 mx-auto mb-6">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-full blur-xl"></div>
-        <div className="relative w-full h-full bg-slate-800 rounded-full overflow-hidden border-2 sm:border-4 border-slate-700 shadow-2xl">
+        <div className="relative w-full h-full bg-slate-800 rounded-full overflow-hidden border-4 border-slate-700 shadow-2xl">
           {/* Idle Video Element */}
           <video 
             ref={idleVideoRef}
@@ -56,9 +56,9 @@ export default function AvatarVideo({
           />
           
           {/* Status Overlay */}
-          <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4">
-            <div className="bg-black/50 backdrop-blur-sm rounded-lg px-2 sm:px-3 py-1 sm:py-2 text-center">
-              <span className={`text-xs sm:text-sm text-white streamingState-${streamingState}`}>
+          <div className="absolute bottom-4 left-4 right-4">
+            <div className="bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 text-center">
+              <span className={`text-sm text-white streamingState-${streamingState}`}>
                 {streamingState === 'streaming' ? 'Speaking' : 'Idle'}
               </span>
             </div>
@@ -67,8 +67,8 @@ export default function AvatarVideo({
       </div>
 
       {/* Voice Activity Indicator */}
-      <div className="flex justify-center mb-4 sm:mb-6">
-        <div className={`flex items-end space-x-1 h-6 sm:h-8 ${isRecording ? 'block' : 'hidden'}`}>
+      <div className="flex justify-center mb-4">
+        <div className={`flex items-end space-x-1 h-8 ${isRecording ? 'block' : 'hidden'}`}>
           <div className="mic-bar"></div>
           <div className="mic-bar"></div>
           <div className="mic-bar"></div>

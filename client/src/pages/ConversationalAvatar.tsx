@@ -237,35 +237,34 @@ export default function ConversationalAvatar() {
   }, [streamEvent, latencyStart]);
 
   return (
-    <div className="min-h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-x-hidden">
-      {/* Header */}
-      <header className="w-full bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 mobile-safe-area">
+    <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">
+      {/* Header - Fixed at top */}
+      <header className="flex-shrink-0 w-full bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
-          <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-xs sm:text-sm">AI</span>
+          <div className="flex items-center space-x-3 flex-shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-sm">AI</span>
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-lg md:text-xl font-semibold text-white truncate">Alex</h1>
-              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block truncate">D-ID AI Assistant</p>
+              <h1 className="text-lg font-semibold text-white truncate">Alex</h1>
+              <p className="text-sm text-slate-400 hidden sm:block truncate">D-ID AI Assistant</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-            <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <div className="flex items-center space-x-2 text-sm">
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
               <span className="text-slate-300 hidden sm:inline whitespace-nowrap">{isConnected ? 'Connected' : 'Ready'}</span>
-              <span className="text-slate-300 sm:hidden">{isConnected ? '●' : '○'}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex flex-col lg:flex-row flex-1 w-full min-h-0 relative">
+      {/* Main Content - Flexible layout */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Avatar Section */}
-        <div className="flex-1 flex items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 w-full lg:w-auto">
-          <div className="max-w-2xl w-full mx-auto">
+        <div className="flex-1 lg:flex-shrink-0 flex flex-col justify-center items-center p-4 overflow-y-auto">
+          <div className="w-full max-w-md mx-auto">
             <AvatarVideo
               videoRef={videoRef}
               idleVideoRef={idleVideoRef}
@@ -274,26 +273,28 @@ export default function ConversationalAvatar() {
               isRecording={isRecording}
             />
 
-            <ControlPanel
-              isConnected={isConnected}
-              isRecording={isRecording}
-              connectionState={connectionState}
-              iceConnectionState={iceConnectionState}
-              iceGatheringState={iceGatheringState}
-              signalingState={signalingState}
-              streamingState={streamingState}
-              streamEvent={streamEvent}
-              latency={latency}
-              sttStatus={sttStatus}
-              onConnect={handleConnect}
-              onStartConversation={handleStartConversation}
-              onDisconnect={handleDisconnect}
-            />
+            <div className="mt-4">
+              <ControlPanel
+                isConnected={isConnected}
+                isRecording={isRecording}
+                connectionState={connectionState}
+                iceConnectionState={iceConnectionState}
+                iceGatheringState={iceGatheringState}
+                signalingState={signalingState}
+                streamingState={streamingState}
+                streamEvent={streamEvent}
+                latency={latency}
+                sttStatus={sttStatus}
+                onConnect={handleConnect}
+                onStartConversation={handleStartConversation}
+                onDisconnect={handleDisconnect}
+              />
+            </div>
           </div>
         </div>
 
         {/* Conversation Panel */}
-        <div className="w-full lg:w-96 lg:flex-shrink-0">
+        <div className="w-full lg:w-96 lg:flex-shrink-0 flex">
           <ConversationPanel
             conversationHistory={conversationHistory}
             currentTranscription={currentTranscription}
