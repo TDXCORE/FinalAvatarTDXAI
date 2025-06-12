@@ -379,20 +379,24 @@ export function useWebRTC() {
   // Soft reset for maintaining connection between conversations
   const softReset = useCallback(() => {
     console.log('🔄 Soft reset - maintaining D-ID connection');
-    // Only reset conversation state, keep connection alive
+    console.log('🔄 Preserving session:', sessionId, 'stream:', streamId);
+    // Only reset UI state, preserve session/stream IDs for continuous conversation
     setStreamEvent('');
     setStreamingState('empty');
-    setIsStreamReady(false);
-  }, []);
+    // Don't reset isStreamReady - keep it true to allow immediate next response
+    // setIsStreamReady(false); // Comment out to maintain readiness
+  }, [sessionId, streamId]);
 
   const sendStreamText = useCallback((text: string, abortController?: AbortController) => {
     console.log('🎯 sendStreamText called with:', text);
     console.log('🎯 WebSocket state:', webSocketRef.current?.readyState);
     console.log('🎯 StreamId:', streamId);
     console.log('🎯 SessionId:', sessionId);
+    console.log('🎯 IsStreamReady:', isStreamReady);
     
     if (!webSocketRef.current || webSocketRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ D-ID WebSocket not open:', webSocketRef.current?.readyState);
+      console.error('❌ This means the WebSocket connection was closed or lost');
       return;
     }
     
@@ -401,6 +405,7 @@ export function useWebRTC() {
         streamId: !!streamId,
         sessionId: !!sessionId
       });
+      console.error('❌ This means the D-ID session was reset or never established properly');
       return;
     }
 

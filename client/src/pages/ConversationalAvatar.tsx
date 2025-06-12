@@ -438,17 +438,15 @@ export default function ConversationalAvatar() {
   useEffect(() => {
     if (streamEvent === 'done' || streamEvent === 'error') {
       setIsAvatarTalking(false);
-      console.log('🔇 Avatar finished speaking');
-      // Use soft reset instead of full disconnect to maintain D-ID session
-      setTimeout(() => {
-        softReset();
-        setPipelineState('idle');
-      }, 100);
+      console.log('🔇 Avatar finished speaking - keeping D-ID session active');
+      // Only update pipeline state, don't reset D-ID connection
+      setPipelineState('idle');
+      // Don't call softReset - it's interfering with session continuity
     } else if (streamEvent === 'started') {
       setIsAvatarTalking(true);
       console.log('🗣️ Avatar started speaking');
     }
-  }, [streamEvent, softReset]);
+  }, [streamEvent]);
 
   return (
     <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">
