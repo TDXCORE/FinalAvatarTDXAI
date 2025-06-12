@@ -212,6 +212,10 @@ export default function ConversationalAvatar() {
       
       // Start new recording turn
       setPipelineState('processing');
+    },
+    onInterrupt: () => {
+      console.log('🛑 INTERRUPT CALLBACK - Same as Stop button');
+      abortRef.current(); // Direct call to abort function - same as Stop button
     }
   });
 

@@ -14,9 +14,10 @@ interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;
   onSpeechStart?: () => void;
   isAvatarSpeaking?: boolean; // Nuevo parámetro para modo interrupción
+  onInterrupt?: () => void; // Nueva función específica para interrumpir
 }
 
-export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatarSpeaking }: UseVADProps) {
+export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatarSpeaking, onInterrupt }: UseVADProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -139,9 +140,15 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
 
     // Immediate barge-in detection during avatar speech - VERY LOW THRESHOLD
     if (isAvatarSpeaking && !currentlyRecording && level > 5.0) {
-      console.log(`🚨 IMMEDIATE BARGE-IN DETECTED: level=${level.toFixed(1)}, avatar speaking, triggering interrupt!`);
+      console.log(`🚨 IMMEDIATE BARGE-IN DETECTED: level=${level.toFixed(1)}, avatar speaking, triggering ABORT!`);
       
-      // Immediately trigger the interrupt callback
+      // Call the interrupt function directly - this should trigger the same abort as the Stop button
+      if (onInterrupt) {
+        console.log('🛑 Calling onInterrupt function - same as Stop button');
+        onInterrupt();
+      }
+      
+      // Also call onSpeechStart for compatibility
       onSpeechStart?.();
       
       // Start recording to capture the interruption
