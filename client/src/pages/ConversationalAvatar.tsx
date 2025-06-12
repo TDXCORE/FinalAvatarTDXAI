@@ -70,36 +70,47 @@ export default function ConversationalAvatar() {
     console.log('🛑 Avatar talking state:', isAvatarTalking);
     console.log('🛑 Pipeline state:', pipelineState);
     
-    // 1. D-ID video/stream
+    // 1. FORCE STOP VIDEO IMMEDIATELY
     if (videoRef.current) {
-      console.log('🛑 Stopping main video element');
+      console.log('🛑 FORCE stopping main video element');
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
       videoRef.current.style.opacity = '0';
+      videoRef.current.style.display = 'none';
+      
+      // Remove video source to completely stop playback
+      videoRef.current.src = '';
+      videoRef.current.srcObject = null;
     }
+    
     if (idleVideoRef.current) {
       console.log('🛑 Showing idle video');
       idleVideoRef.current.style.opacity = '1';
+      idleVideoRef.current.style.display = 'block';
     }
     
+    // 2. Stop D-ID connection aggressively
     if (didAbortController.current) {
       console.log('🛑 Aborting D-ID controller');
       didAbortController.current.abort();
     }
     
-    // 2. LLM stream
+    // Force stop WebRTC streams
+    interruptStream();
+    
+    // 3. LLM stream
     if (llmAbortController.current) {
       console.log('🛑 Aborting LLM controller');
       llmAbortController.current.abort();
     }
     
-    // 3. STT stream  
+    // 4. STT stream  
     if (sttAbortController.current) {
       console.log('🛑 Aborting STT controller');
       sttAbortController.current.abort();
     }
     
-    // 4. Timers and state cleanup
+    // 5. Timers and state cleanup
     if (thinkingTimer.current) {
       console.log('🛑 Clearing thinking timer');
       clearTimeout(thinkingTimer.current);
@@ -110,7 +121,15 @@ export default function ConversationalAvatar() {
     setPipelineState('idle');
     
     console.log('🛑 All processes stopped - abort complete');
-  }, [videoRef, idleVideoRef, isAvatarTalking, pipelineState]);
+    
+    // Restore video element after short delay to allow for new streams
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.style.display = 'block';
+        console.log('🔄 Video element restored for future use');
+      }
+    }, 1000);
+  }, [videoRef, idleVideoRef, isAvatarTalking, pipelineState, interruptStream]);
 
   // Make abortTurn available to other components
   abortRef.current = abortTurn;

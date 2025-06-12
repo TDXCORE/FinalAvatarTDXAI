@@ -395,8 +395,9 @@ export function useWebRTC() {
           idleVideoRef.current.style.opacity = '1';
         }
         
-        // Send stop message to D-ID if websocket is available
+        // Aggressively stop D-ID stream
         if (webSocketRef.current && sessionId && streamId) {
+          // Send multiple stop commands
           const stopMessage = {
             type: 'stream-destroy',
             payload: {
@@ -405,6 +406,26 @@ export function useWebRTC() {
             }
           };
           sendMessage(webSocketRef.current, stopMessage);
+          
+          // Also try stream-stop
+          const stopStreamMessage = {
+            type: 'stream-stop',
+            payload: {
+              session_id: sessionId,
+              stream_id: streamId
+            }
+          };
+          sendMessage(webSocketRef.current, stopStreamMessage);
+        }
+        
+        // Force stop all video streams
+        if (peerConnectionRef.current) {
+          const receivers = peerConnectionRef.current.getReceivers();
+          receivers.forEach(receiver => {
+            if (receiver.track) {
+              receiver.track.stop();
+            }
+          });
         }
       });
     }
