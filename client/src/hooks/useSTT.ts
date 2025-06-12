@@ -209,8 +209,9 @@ export function useSTT({ onTranscription }: UseSTTProps) {
         // Additional safety check - reject if contains any artifact keywords
         const cleanText = transcription.toLowerCase().trim();
         const containsArtifact = cleanText === 'en español' || 
+                                cleanText === 'gracias' ||
                                 cleanText.includes('en español') ||
-                                cleanText.includes('gracias') ||
+                                cleanText.includes('gracias por') ||
                                 cleanText.includes('video') ||
                                 cleanText.includes('por ver');
         

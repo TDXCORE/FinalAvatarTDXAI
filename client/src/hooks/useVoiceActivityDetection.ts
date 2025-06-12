@@ -97,13 +97,21 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
       backgroundLevelRef.current = backgroundLevel;
     }
     
-    // Adaptive threshold: background + reduced sensitivity margin for better interruption detection
-    const adaptiveThreshold = backgroundLevelRef.current + 2;
-    const finalThreshold = Math.max(adaptiveThreshold, THRESHOLD);
+    // Use fixed threshold during avatar speech for reliable interruption detection
+    let finalThreshold;
+    if (isAvatarSpeaking) {
+      // Fixed lower threshold during avatar speech for better interruption detection
+      finalThreshold = Math.max(THRESHOLD, 8);
+    } else {
+      // Adaptive threshold for normal speech detection
+      const adaptiveThreshold = backgroundLevelRef.current + 2;
+      finalThreshold = Math.max(adaptiveThreshold, THRESHOLD);
+    }
     
     // Debug logging for troubleshooting
     if (level > finalThreshold - 2) {
-      console.log(`🎵 Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}`);
+      const mode = isAvatarSpeaking ? '[INTERRUPT MODE]' : '[NORMAL]';
+      console.log(`🎵 ${mode} Level: ${level.toFixed(1)}, Threshold: ${finalThreshold.toFixed(1)}, BG: ${backgroundLevelRef.current.toFixed(1)}`);
     }
 
     // Store in pre-roll buffer (ring buffer)
