@@ -1,0 +1,95 @@
+Estrategia “quick win” – mínimo impacto, máxima mejora
+Meta: Conversaciones fluidas (< 1 s), interrupciones (“barge-in”) y cero refactor masivo.
+Idea: Ajustar lo que ya existe en dos archivos clave y agregar solo una dependencia ligera.
+
+1. Qué vamos a tocar
+Archivo	Cambio	LOC aprox.
+useVoiceActivityDetection.ts	- Afinar VAD con histéresis y pre-roll sin reemplazar FFT.	+30
+ConversationalAvatar.tsx	- Cortar TTS si detectamos voz (> 2 frames).	+15
+Nueva dep. opcional	@ricky0123/vad inline (40 KB WASM). Si no quieres lib nueva, ignora paso 3.	0–1 import
+
+Total ≈ 45 líneas nuevas, ningún archivo borrado.
+
+2. Ajustes VAD (sigue siendo el mismo hook)
+ts
+Copiar
+// arriba del archivo
+const OPEN_FRAMES = 3;      // histéresis abrir
+const CLOSE_FRAMES = 10;    // histéresis cerrar (~300 ms)
+const PRE_ROLL_MS = 200;    // evita perder la 1.ª sílaba
+const ring: number[] = [];  // pequeño FIFO en memoria
+ts
+Copiar
+// dentro de monitorAudioLevel()
+ring.push(...freqData);                // guarda 200 ms máx.
+if (ring.length > PRE_ROLL_MS / 10) ring.shift();
+
+// lógica histéresis ↓ reemplaza al umbral fijo
+if (!recording && level > threshold) hot++; else hot = 0;
+if (recording && level < threshold)  cold++; else cold = 0;
+
+if (!recording && hot >= OPEN_FRAMES) {
+  recording = true;
+  onSpeechStart();
+}
+if (recording && cold >= CLOSE_FRAMES) {
+  recording = false;
+  const blob = buildWav([...ring, ...bufferedFrames]);
+  onSpeechEnd(blob);
+  ring.length = 0;
+}
+No workers, no WASM.
+Presupuesto CPU ≈ igual; beneficio: arranque rápido + cortes suaves.
+
+3. [OPCIONAL] Precisión extra con 1 sola lib
+Si quieres algo más robusto sin re-escribir lógica:
+
+bash
+Copiar
+pnpm add @ricky0123/vad
+Dentro del hook:
+
+ts
+Copiar
+import createVad from '@ricky0123/vad';
+const vad = await createVad({ wasmURL: '/silero_vad.wasm' });
+
+const prob = vad.detect(float32Frame);   // 0-1
+if (!recording && prob > 0.6) ...
+if (recording && prob < 0.3) ...
+Solo 4-5 líneas nuevas. Si no hay WASM (Safari < v16), cae en tu FFT.
+
+4. “Barge-in” en 15 líneas
+tsx
+Copiar
+// ConversationalAvatar.tsx (donde manejas TTS)
+const onSpeechStart = () => {
+  if (isAvatarTalking) {
+    didApi.stopStream();        // ↞ pausa vídeo D-ID
+    setIsAvatarTalking(false);
+  }
+};
+onSpeechEnd(blob) sigue igual: manda blob → STT (stream) → LLM (stream) → TTS.
+
+5. Latencia < 1 s sin cambios drásticos
+Paso	Acción	Target
+STT Whisper Groq	Usa opción return_partial y empuja al LLM en cuanto llegue la 1.ª palabra.	200 ms
+LLM Groq	stream=true, top_p=0.9, max_tokens=120	250 ms
+D-ID	Configura clips/stream (ya 1 crédito / stream).	≤ 400 ms
+
+Con VAD + pre-roll + histéresis = ~30 ms ⇒ ~880 ms total.
+
+6. Resumen para el asistente de código
+Añade histéresis (OPEN_FRAMES=3, CLOSE_FRAMES=10) y búfer circular de 200 ms en useVoiceActivityDetection.ts.
+
+Llama onSpeechStart() cuando hot≥OPEN_FRAMES; onSpeechEnd(blob) cuando cold≥CLOSE_FRAMES.
+
+Opcional: si hay @ricky0123/vad, usa vad.detect() en lugar del nivel FFT. Fallback ⇒ FFT.
+
+En ConversationalAvatar.tsx, si onSpeechStart se dispara mientras isAvatarTalking, ejecuta didApi.stopStream() y cambia estado a “user”.
+
+Mantén el resto del pipeline (STT → LLM → TTS) igual, verificando que llegan tokens parciales para reducir latencia.
+
+Objetivo medible: Turno completo ≤ 1000 ms, 5 interrupciones seguidas < 300 ms de lag, sin pérdida de primeras sílabas.
+
+Con estas mini-intervenciones tendrás una conversación mucho más fluida, sin rehacer la app. ¡Manos a la obra!

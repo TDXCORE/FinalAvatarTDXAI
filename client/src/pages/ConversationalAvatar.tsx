@@ -12,6 +12,7 @@ import { loadApiConfig, CONFIG } from "@/lib/config";
 export default function ConversationalAvatar() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isAvatarTalking, setIsAvatarTalking] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<Array<{
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -56,6 +57,7 @@ export default function ConversationalAvatar() {
     onResponse: (response) => {
       addConversationMessage('assistant', response);
       if (apiConfig) {
+        setIsAvatarTalking(true);
         sendStreamText(response);
       }
     }
@@ -66,12 +68,14 @@ export default function ConversationalAvatar() {
     onSpeechEnd: async (audioBlob) => {
       console.log(`📦 Processing voice input: ${audioBlob.size} bytes`);
       
-      // Process audio with Groq STT
+      // Process audio with Groq STT optimized for low latency
       const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('file', audioBlob, 'audio.wav');
       formData.append('model', 'whisper-large-v3');
       formData.append('language', 'es');
       formData.append('response_format', 'json');
+      formData.append('temperature', '0.0'); // More deterministic
+      formData.append('prompt', 'Conversación en español'); // Context hint
 
       try {
         const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
@@ -96,6 +100,21 @@ export default function ConversationalAvatar() {
     },
     onSpeechStart: () => {
       console.log('🎤 Voice detected, listening...');
+      
+      // Barge-in: Stop avatar if talking when user starts speaking
+      if (isAvatarTalking) {
+        console.log('🛑 Interrupting avatar speech');
+        // Stop D-ID stream
+        if (apiConfig) {
+          try {
+            // Send empty stream to stop current playback
+            sendStreamText('');
+          } catch (error) {
+            console.error('Failed to stop stream:', error);
+          }
+        }
+        setIsAvatarTalking(false);
+      }
     }
   });
 
@@ -235,6 +254,17 @@ export default function ConversationalAvatar() {
       setLatencyStart(null);
     }
   }, [streamEvent, latencyStart]);
+
+  // Track avatar talking state based on streaming events
+  useEffect(() => {
+    if (streamEvent === 'done' || streamEvent === 'error') {
+      setIsAvatarTalking(false);
+      console.log('🔇 Avatar finished speaking');
+    } else if (streamEvent === 'started') {
+      setIsAvatarTalking(true);
+      console.log('🗣️ Avatar started speaking');
+    }
+  }, [streamEvent]);
 
   return (
     <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">
