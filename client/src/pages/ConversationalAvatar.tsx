@@ -246,7 +246,7 @@ export default function ConversationalAvatar() {
     thinkingTimer.current = setTimeout(() => {
       // Check if turn is still valid
       if (turnId.current === currentTurnId && pipelineState !== 'idle') {
-        sendToLLM(messages, llmAbortController.current || undefined);
+        sendToLLM(messages, llmAbortController.current ?? undefined);
       } else {
         console.log('Turn invalidated, skipping LLM request');
       }
