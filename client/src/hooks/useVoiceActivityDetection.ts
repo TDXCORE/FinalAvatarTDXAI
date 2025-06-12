@@ -1,13 +1,13 @@
 import { useRef, useCallback } from 'react';
 import { CONFIG } from '@/lib/config';
 
-// VAD Parameters tuned for accurate speech detection
-const OPEN_FRAMES = 4;      // más estricto para evitar falsos positivos
-const CLOSE_FRAMES = 30;    // más tiempo de silencio antes de procesar (~1 segundo)
-const PRE_ROLL_MS = 300;    // buffer suficiente sin exceso
-const THRESHOLD = 35;       // umbral más alto para evitar ruido
-const MIN_RECORDING_MS = 1200; // tiempo mínimo más largo para frases completas
-const DEBOUNCE_MS = 500;    // tiempo de espera antes de procesar nueva grabación
+// VAD Parameters simplified for reliable detection
+const OPEN_FRAMES = 2;      // más sensible para detectar inicio
+const CLOSE_FRAMES = 15;    // tiempo razonable de silencio (~500ms)
+const PRE_ROLL_MS = 200;    // buffer mínimo necesario
+const THRESHOLD = 20;       // umbral bajo para mejor detección
+const MIN_RECORDING_MS = 600; // tiempo mínimo reducido
+const DEBOUNCE_MS = 200;    // debounce más corto
 
 interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;

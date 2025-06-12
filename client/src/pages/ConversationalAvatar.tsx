@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import AvatarVideo from "@/components/AvatarVideo";
 import ConversationPanel from "@/components/ConversationPanel";
 import ControlPanel from "@/components/ControlPanel";
+import AudioTestPanel from "@/components/AudioTestPanel";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useSTT } from "@/hooks/useSTT";
 import { useLLM } from "@/hooks/useLLM";
@@ -41,6 +42,7 @@ export default function ConversationalAvatar() {
   const {
     startRecording,
     stopRecording,
+    processAudioWithGroq,
     isInitialized: sttInitialized,
     connectionStatus: sttStatus
   } = useSTT({
@@ -304,7 +306,7 @@ export default function ConversationalAvatar() {
               isRecording={isRecording}
             />
 
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
               <ControlPanel
                 isConnected={isConnected}
                 isRecording={isRecording}
@@ -319,6 +321,14 @@ export default function ConversationalAvatar() {
                 onConnect={handleConnect}
                 onStartConversation={handleStartConversation}
                 onDisconnect={handleDisconnect}
+              />
+              
+              {/* Audio Test Panel - for debugging */}
+              <AudioTestPanel 
+                onAudioTest={(audioBlob) => {
+                  console.log('🧪 Test audio captured, processing with STT...');
+                  processAudioWithGroq(audioBlob);
+                }}
               />
             </div>
           </div>

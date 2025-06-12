@@ -201,6 +201,7 @@ export function useSTT({ onTranscription }: UseSTTProps) {
   return {
     startRecording,
     stopRecording,
+    processAudioWithGroq,
     isInitialized,
     connectionStatus
   };
