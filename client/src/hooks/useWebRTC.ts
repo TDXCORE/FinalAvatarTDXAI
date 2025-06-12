@@ -410,6 +410,12 @@ export function useWebRTC() {
     }
 
     console.log('🎯 Sending text to D-ID avatar:', text);
+    
+    // Force stream ready if not already set (after interruptions)
+    if (!isStreamReady) {
+      console.log('🔄 Forcing stream ready state for post-interruption playback');
+      setIsStreamReady(true);
+    }
 
     const streamMessage = {
       type: 'stream-text',
