@@ -93,9 +93,8 @@ export default function ConversationalAvatar() {
     
     setIsAvatarTalking(false);
     setPipelineState('idle');
-    turnId.current += 1; // Invalidate old callbacks
     
-    console.log('🛑 All processes stopped, turnId:', turnId.current);
+    console.log('🛑 All processes stopped');
   }, [videoRef, idleVideoRef]);
 
   // Make abortTurn available to other components
@@ -103,11 +102,8 @@ export default function ConversationalAvatar() {
 
   const { sendMessage: sendToLLM } = useLLM({
     onResponse: (response) => {
-      // Check if this response is still valid (not aborted)
-      const currentTurnId = turnId.current;
-      
       addConversationMessage('assistant', response);
-      if (apiConfig && pipelineState !== 'idle') {
+      if (apiConfig) {
         // Create new abort controller for this D-ID stream
         didAbortController.current = new AbortController();
         setIsAvatarTalking(true);
@@ -144,9 +140,23 @@ export default function ConversationalAvatar() {
         if (response.ok) {
           const data = await response.json();
           if (data.text && data.text.trim()) {
-            console.log('🎯 Voice transcription:', data.text);
-            processUserMessage(data.text);
+            const transcription = data.text.trim();
+            console.log('🎯 Voice transcription:', transcription);
+            
+            // Filter out common artifacts
+            const isArtifact = transcription.toLowerCase().includes('gracias por ver') ||
+                              transcription.toLowerCase().includes('en español') ||
+                              transcription.toLowerCase() === 'gracias';
+            
+            if (!isArtifact) {
+              processUserMessage(transcription);
+            } else {
+              console.log('🚫 Filtered artifact:', transcription);
+              setPipelineState('idle');
+            }
           }
+        } else {
+          setPipelineState('idle');
         }
       } catch (error) {
         console.error('Voice processing failed:', error);
@@ -214,8 +224,7 @@ export default function ConversationalAvatar() {
   };
 
   const processUserMessage = async (userMessage: string) => {
-    const currentTurnId = turnId.current;
-    console.log('Processing user message:', userMessage, 'turnId:', currentTurnId);
+    console.log('Processing user message:', userMessage);
     
     setLatencyStart(Date.now());
     addConversationMessage('user', userMessage);
@@ -242,15 +251,10 @@ export default function ConversationalAvatar() {
     // Create abort controller for LLM request
     llmAbortController.current = new AbortController();
     
-    // Add thinking delay with visual feedback
-    thinkingTimer.current = setTimeout(() => {
-      // Check if turn is still valid
-      if (turnId.current === currentTurnId && pipelineState !== 'idle') {
-        sendToLLM(messages, llmAbortController.current ?? undefined);
-      } else {
-        console.log('Turn invalidated, skipping LLM request');
-      }
-    }, 1500);
+    // Send to LLM with a small delay for visual feedback
+    setTimeout(() => {
+      sendToLLM(messages, llmAbortController.current ?? undefined);
+    }, 1000);
   };
 
   const handleConnect = async () => {
