@@ -1,0 +1,80 @@
+Qué muestra tu log de prueba
+El WebRTC y el canal de D-ID se inician bien – aparece stream/ready, lo que significa que el avatar ya puede recibir texto.
+
+El VAD detecta voz (🎯 Normal detection check… hotFrames=3) y entra en onSpeechStart, pero no llega el mensaje “🎤 Voice detected – started recording”.
+Esto indica que la rama que llama mediaRecorder.start() no se ejecuta porque alguna de sus condiciones de salida no se cumple.
+
+🖐️ Causa raíz
+En useVoiceActivityDetection tienes varias “puertas” antes de realmente grabar y soltar el audio:
+
+Paso	Condición	Archivo / línea
+1. Arrancar grabación	hotFrames >= OPEN_FRAMES (3) y normalDetection === true	
+2. Parar grabación	coldFrames >= CLOSE_FRAMES (30) y recordingDuration ≥ MIN_RECORDING_MS (1200 ms)	
+
+En tu test los hotFrames sí llegan a 3, pero nunca llegas a 30 frames fríos porque el THRESHOLD se recalcula dinámicamente y, mientras hablas o hay ruido ambiente, los niveles nunca caen lo suficiente. Por eso la grabación no se cierra y onSpeechEnd jamás dispara el STT → LLM.
+
+✅ Solución definitiva (3 cambios mínimos)
+#	Cambio	Dónde	Por qué
+1	Baja CLOSE_FRAMES de 30 → 15	Constantes en useVoiceActivityDetection	Permite cerrar la grabación ~½ s después de la última sílaba en vez de 1 s completo.
+2	Baja MIN_RECORDING_MS de 1200 → 800	Mismo bloque de constantes	Garantiza que frases cortas (“Hola Alex”) se procesen.
+3	Fuerza un “timeout de seguridad” si llevas 6 s grabando	Dentro de mediaRecorder.onstart o al declarar recordingStartTimeRef	Evita que el sistema se quede grabando indefinidamente si no detecta silencio.
+
+ts
+Copiar
+Editar
+// useVoiceActivityDetection.ts
+const CLOSE_FRAMES        = 15;   // antes 30
+const MIN_RECORDING_MS    = 800;  // antes 1200
+const MAX_RECORDING_MS    = 6000; // nuevo límite duro
+ts
+Copiar
+Editar
+mediaRecorder.onstart = () => {
+  setTimeout(() => {
+    if (isRecordingRef.current && mediaRecorder.state === 'recording') {
+      console.log('⏰ MAX_RECORDING_MS reached – stopping manually');
+      mediaRecorder.stop();
+    }
+  }, MAX_RECORDING_MS);
+};
+🛠️ Otros ajustes recomendados
+Re-habilita la interrupción del stream cuando abortas:
+
+ts
+Copiar
+Editar
+// ConversationalAvatar.tsx – abortTurn()
+interruptStream(); // quita el comentario
+Así D-ID cierra su streamId y acepta texto de nuevo.
+
+Renueva el AbortController antes de cada sendStreamText para que nunca re-uses uno ya cancelado:
+
+ts
+Copiar
+Editar
+if (didAbortController.current) didAbortController.current.abort();
+didAbortController.current = new AbortController();
+Asegura que siempre uses un formato que Groq Whisper soporte.
+Cambia tu selección de MIME: si existe audio/webm;codecs=opus, Groq lo acepta; de lo contrario fuerza audio/wav.
+
+📋 Checklist para probar
+Ejecuta conversationTest.runSingleTest(1) (frase corta) y comprueba que ahora aparece
+
+python
+Copiar
+Editar
+🎤 Voice detected – started recording
+🔇 Stopping MediaRecorder after …ms
+📦 Processing voice input: … bytes
+🎯 Voice transcription: …
+Ejecuta conversationTest.simulateManualInterrupt() durante la respuesta y confirma que ves
+
+bash
+Copiar
+Editar
+🚨 IMMEDIATE BARGE-IN DETECTED …
+🛑 Calling onInterrupt function
+stream/stopped
+y a continuación el avatar responde a tu nueva frase.
+
+Si ambas pruebas pasan, el pipeline STT → LLM → TTS vuelve a estar vivo para cada turno, incluso después de una interrupción.

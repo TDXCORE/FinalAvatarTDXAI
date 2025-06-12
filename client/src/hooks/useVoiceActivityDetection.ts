@@ -3,10 +3,11 @@ import { CONFIG } from '@/lib/config';
 
 // VAD Parameters optimized to prevent duplicate detection
 const OPEN_FRAMES = 3;      // más estricto para evitar activaciones múltiples
-const CLOSE_FRAMES = 30;    // tiempo extendido para capturar frases completas
+const CLOSE_FRAMES = 15;    // antes 30 - permite cerrar grabación ~½ s después de última sílaba
 const PRE_ROLL_MS = 200;    // buffer mínimo necesario
 const THRESHOLD = 3.0;      // umbral optimizado para interrupciones fluidas durante habla del avatar
-const MIN_RECORDING_MS = 1200; // tiempo mínimo extendido para capturar frases completas
+const MIN_RECORDING_MS = 800; // antes 1200 - garantiza que frases cortas se procesen
+const MAX_RECORDING_MS = 6000; // nuevo límite duro para evitar grabaciones indefinidas
 const DEBOUNCE_MS = 1500;   // debounce más largo para evitar solapamiento
 const INTERRUPT_DEBOUNCE_MS = 300; // debounce reducido para interrupciones
 
@@ -324,6 +325,16 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
         if (event.data.size > 0) {
           recordingChunksRef.current.push(event.data);
         }
+      };
+
+      mediaRecorder.onstart = () => {
+        // Timeout de seguridad para evitar grabaciones indefinidas
+        setTimeout(() => {
+          if (isRecordingRef.current && mediaRecorder.state === 'recording') {
+            console.log('⏰ MAX_RECORDING_MS reached – stopping manually');
+            mediaRecorder.stop();
+          }
+        }, MAX_RECORDING_MS);
       };
 
       mediaRecorder.onstop = () => {
