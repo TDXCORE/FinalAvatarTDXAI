@@ -293,10 +293,13 @@ export default function ConversationalAvatar() {
     // Create abort controller for LLM request
     llmAbortController.current = new AbortController();
     
-    // Send to LLM with a small delay for visual feedback
+    // Send to LLM immediately for barge-in scenarios, with delay for normal flow
+    const delay = pipelineState === 'processing' ? 100 : 1000; // Faster for barge-in
     setTimeout(() => {
+      // Create a fresh abort controller to avoid conflicts with previous abort calls
+      llmAbortController.current = new AbortController();
       sendToLLM(messages, llmAbortController.current ?? undefined);
-    }, 1000);
+    }, delay);
   };
 
   const handleConnect = async () => {
