@@ -367,6 +367,8 @@ export default function ConversationalAvatar() {
   }, [apiConfig, sendStreamText, processUserMessage]);
 
   const handleDisconnect = () => {
+    console.log('🔌 handleDisconnect called - this should only happen when user clicks End button');
+    console.trace('Disconnect call stack trace:');
     disconnectWebRTC();
     stopRecording();
     stopVAD();

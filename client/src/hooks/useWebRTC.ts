@@ -137,11 +137,24 @@ export function useWebRTC() {
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
 
-    // Set video stream source
+    // Set video stream source and ensure it's ready for playback
     if (event.streams && event.streams[0] && videoRef.current) {
-      console.log('Setting video stream source');
+      console.log('🎥 Setting video stream source');
       videoRef.current.srcObject = event.streams[0];
+      
+      // Ensure video element is properly configured for new stream
       videoRef.current.style.opacity = '1';
+      videoRef.current.style.display = 'block';
+      
+      // Hide idle video when new stream arrives
+      if (idleVideoRef.current) {
+        idleVideoRef.current.style.opacity = '0';
+      }
+      
+      // Force video to load new stream
+      videoRef.current.load();
+      
+      console.log('🎥 Video element prepared for new stream');
     }
 
     statsIntervalRef.current = setInterval(async () => {
@@ -412,11 +425,12 @@ export function useWebRTC() {
       abortController.signal.addEventListener('abort', () => {
         console.log('🛑 D-ID stream aborted - stopping video immediately');
         
-        // Immediately stop video
+        // Immediately stop video playback but preserve srcObject
         if (videoRef.current) {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
           videoRef.current.style.opacity = '0';
+          // Don't clear srcObject - keep connection for future streams
         }
         
         // Show idle video
