@@ -73,14 +73,14 @@ export default function ConversationalAvatar() {
     // 1. Abort current LLM request
     abortCurrentRequest();
     
-    // 2. Cancel current D-ID stream
-    cancelCurrentStream();
+    // 2. Cancel current D-ID stream and wait for confirmation
+    await cancelCurrentStream();
     
     // 3. Reset latency tracking
     setLatency(null);
     setLatencyStart(null);
     
-    addConversationMessage('system', 'Conversación interrumpida. Continúa hablando...');
+    // Note: Removed confusing system message for cleaner UX
   }, [abortCurrentRequest, cancelCurrentStream]);
 
   // Voice Activity Detection for automatic conversation flow
@@ -245,14 +245,14 @@ export default function ConversationalAvatar() {
     addConversationMessage('system', 'Desconectado del asistente AI.');
   };
 
-  const handleManualSend = (message: string) => {
+  const handleManualSend = async (message: string) => {
     if (message.trim() && isConnected) {
       console.log('[streamingState]', streamingState, 'isBotSpeaking:', isBotSpeaking);
       
       // Check if bot is currently speaking and interrupt if needed
       if (isBotSpeaking) {
         console.log('🚨 Manual interrupt detected while bot speaking');
-        handleInterrupt();
+        await handleInterrupt();
       }
       
       processUserMessage(message.trim());

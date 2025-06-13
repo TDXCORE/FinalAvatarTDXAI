@@ -1,0 +1,108 @@
+Arreglo de timing: espera a que D-ID confirme el corte antes de lanzar el siguiente stream
+(y elimina el mensaje “Conversación interrumpida”)
+
+1. Qué está pasando
+scss
+Copiar
+INTERRUPT
+│
+├─ abortCurrentRequest()               → LLM se detiene ✅
+├─ cancelCurrentStream()  ───────────┐
+│                                    └─ (via WebSocket) tarda 50-80 ms
+└─ processUserMessage() (inmediato)   ←❌ se dispara ANTES de que D-ID procese el DELETE
+Resultado: el stream nuevo comienza mientras el antiguo aún vive → vídeo nunca se corta.
+
+2. Plan mínimo
+cancelCurrentStream() devuelve una promesa que se resuelve cuando llega stream/done o tras un timeout (fallback 800 ms).
+
+handleInterrupt() se hace async y await esa promesa antes de llamar a processUserMessage().
+
+Remueve el mensaje “Conversación interrumpida…”.
+
+Introduce un flag isCancelling para bloquear cualquier otro envío mientras se espera.
+
+3. Parche (git diff)
+diff
+Copiar
+diff --git a/client/src/hooks/useWebRTC.ts b/client/src/hooks/useWebRTC.ts
+@@
+-  const [streamingState, setStreamingState] = useState<'empty'|'streaming'>('empty');
++  const [streamingState, setStreamingState] = useState<'empty'|'streaming'|'cancelling'>('empty');
++  const cancellingRef = useRef(false);
+
++  // Wait helper:  resolve cuando llega 'stream/done'  o timeout
++  function waitForStreamDone(timeout = 800): Promise<void> {
++    return new Promise((resolve) => {
++      const tid = setTimeout(resolve, timeout);
++      const listener = (event: string) => {
++        if (event === 'stream/done' || event === 'stream/error') {
++          clearTimeout(tid);
++          socket.off('message', listener as any);
++          resolve();
++        }
++      };
++      socket.on('message', listener);        // 👈 tu wrapper de WS
++    });
++  }
+
+   const cancelCurrentStream = useCallback(async (): Promise<void> => {
+     if (!currentStreamIdRef.current || cancellingRef.current) return;
+-    try {
++    cancellingRef.current = true;
++    setStreamingState('cancelling');
++    try {
+       await fetch(`${DID_API}/streams/${currentStreamIdRef.current}`, {
+         method: 'DELETE',
+         headers: { Authorization: `Bearer ${apiKey}` },
+       });
+-    } catch (err) {
++      await waitForStreamDone();             // 🕒 espera confirmación
++    } catch (err) {
+       console.error('Error cancelling stream', err);
+     } finally {
+       currentStreamIdRef.current = null;
+-      setStreamingState('empty');
++      setStreamingState('empty');
++      cancellingRef.current = false;
+     }
+   }, [apiKey]);
+diff
+Copiar
+diff --git a/client/src/components/ConversationalAvatar.tsx b/client/src/components/ConversationalAvatar.tsx
+@@
+-const handleInterrupt = () => {
+-  console.log('🚨 Manual interrupt detected');
+-  abortControllerRef.current?.abort?.();
+-  cancelCurrentStream();
+-  addConversationMessage('system', 'Conversación interrumpida. Continúa hablando...'); // ❌ confunde
+-};
++const handleInterrupt = async () => {
++  console.log('🚨 Manual interrupt detected');
++  abortControllerRef.current?.abort?.();    // corta LLM
++  await cancelCurrentStream();              // espera a que vídeo pare
++  // 👆 no agregues mensaje de sistema: UX más limpia
++};
+diff
+Copiar
+diff --git a/client/src/hooks/useVoiceActivityDetection.ts b/client/src/hooks/useVoiceActivityDetection.ts
+@@
+   if (isCancelling) return;    // 🛡️ bloquea VAD durante cancelación
+(Añade el isCancelling como prop si lo necesitas, o lee streamingState === 'cancelling' directamente.)
+
+4. Checklist de verificación
+Interrumpes → avatar se calla en ≤ 200 ms.
+
+Consola muestra orden correcto:
+
+bash
+Copiar
+… stream/started
+🚨 Manual interrupt detected
+🗑️ Cancelling current D-ID stream
+stream/done          ← ahora sí llega antes del stream nuevo
+… stream/started      ← sólo cuando el anterior acabó
+Sin mensaje “Conversación interrumpida” en el chat.
+
+Spams rápidos de teclado/voz no crean condición de carrera (el flag cancellingRef los bloquea).
+
+Con este pequeño gate sincrónico el flujo se hace robusto: siempre paras al avatar antes de arrancar la siguiente respuesta.

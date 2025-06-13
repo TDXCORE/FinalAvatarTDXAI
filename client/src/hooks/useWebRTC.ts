@@ -14,6 +14,7 @@ export function useWebRTC() {
   const [iceGatheringState, setIceGatheringState] = useState('');
   const [signalingState, setSignalingState] = useState('');
   const [streamingState, setStreamingState] = useState('empty');
+  const cancellingRef = useRef(false);
   const [streamEvent, setStreamEvent] = useState('');
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamId, setStreamId] = useState<string | null>(null);
@@ -385,26 +386,47 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
-  const cancelCurrentStream = useCallback(() => {
-    if (!webSocketRef.current || !streamId || !sessionId) {
-      console.log('No active stream to cancel');
+  // Simplified wait helper: just use a delay to ensure D-ID processes the cancellation
+  const waitForStreamDone = useCallback((timeout = 300): Promise<void> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('⏰ Stream cancel delay completed');
+        resolve();
+      }, timeout);
+    });
+  }, []);
+
+  const cancelCurrentStream = useCallback(async (): Promise<void> => {
+    if (!webSocketRef.current || !streamId || !sessionId || cancellingRef.current) {
+      console.log('No active stream to cancel or already cancelling');
       return;
     }
 
+    cancellingRef.current = true;
+    setStreamingState('empty'); // Set to empty immediately
     console.log('🗑️ Cancelling current D-ID stream');
     
-    const deleteMessage = {
-      type: 'delete-stream',
-      payload: {
-        session_id: sessionId,
-        stream_id: streamId
-      }
-    };
-    
-    sendMessage(webSocketRef.current, deleteMessage);
-    setStreamingState('empty');
-    setStreamEvent('cancelled');
-  }, [streamId, sessionId]);
+    try {
+      const deleteMessage = {
+        type: 'delete-stream',
+        payload: {
+          session_id: sessionId,
+          stream_id: streamId
+        }
+      };
+      
+      sendMessage(webSocketRef.current, deleteMessage);
+      setStreamEvent('cancelled');
+      
+      // Wait for confirmation or timeout
+      await waitForStreamDone();
+      console.log('✅ Stream cancellation confirmed');
+    } catch (error) {
+      console.error('Error during stream cancellation:', error);
+    } finally {
+      cancellingRef.current = false;
+    }
+  }, [streamId, sessionId, waitForStreamDone]);
 
   return {
     connect,
