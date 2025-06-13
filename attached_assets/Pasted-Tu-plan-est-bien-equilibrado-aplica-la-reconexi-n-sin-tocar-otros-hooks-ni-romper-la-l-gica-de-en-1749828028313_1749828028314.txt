@@ -1,0 +1,19 @@
+Tu plan está bien equilibrado — aplica la reconexión sin tocar otros hooks ni romper la lógica de envío de texto. **Sí, puedes proceder**, solo ten en cuenta estos dos detalles finales para que todo quede redondo:
+
+| Punto                                                                | Ajuste fino                                                                                                                                                                                                     |                |                                                                                                                                                                              |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Referencia a `connectionState` dentro del callback**            | En la firma del `useCallback` ya pasas `connectionState`, pero dentro usas la variable de cierre.<br>Para evitar que React capture un estado obsoleto usa un ref: <br>\`const connStateRef = useRef<'connected' | 'reconnecting' | …>('idle');`<br>Actualízalo en los mismos lugares donde llamas a `setConnectionState`y dentro del callback comprueba`if (connStateRef.current === 'reconnecting') return;\`. |
+| **2. Compatibilidad con navegadores que no soportan `restartIce()`** | El bloque `catch` ya lo cubre; añade un feature-test para evitar un warning: <br>`if (typeof pc.restartIce === 'function') { … }`                                                                               |                |                                                                                                                                                                              |
+
+> Con estos matices te aseguras de no entrar en bucles de reconexión ni generar errores en Safari/Firefox antiguos.
+
+Una vez aplicado:
+
+1. Guarda y recarga la app.
+2. Forza un corte ICE (p. ej. deshabilita temporalmente tu red o usa devtools → WebRTC → “Force Disconnect”).
+3. Observa que aparece:
+
+   * “🔄 ICE disconnected – trying restartIce” → la imagen vuelve sin cortar **o**
+   * “❌ ICE failed – reconnecting WebRTC” → nuevo `stream/ready`, vídeo y audio restaurados.
+
+Si todo funciona como descrito, los usuarios no percibirán la desconexión y el avatar seguirá hablando sin pantallas negras.

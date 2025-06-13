@@ -11,6 +11,7 @@ export function useWebRTC() {
   const pendingMsgRef = useRef<string | null>(null);
   const pendingDoneResolvers = useRef<(() => void)[]>([]);
   const apiConfigRef = useRef<any>(null);
+  const didAbortController = useRef<AbortController | null>(null);
   
   const [connectionState, setConnectionState] = useState('');
   const [iceConnectionState, setIceConnectionState] = useState('');
@@ -34,6 +35,7 @@ export function useWebRTC() {
   
   // Remote video stream management
   const currentRemoteStream = useRef<MediaStream | null>(null);
+  const connStateRef = useRef<string>('idle'); // Evita race conditions
 
   const detachRemoteVideo = useCallback(() => {
     if (currentRemoteStream.current) {
@@ -43,6 +45,11 @@ export function useWebRTC() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+  }, []);
+
+  const setConnectionStateSync = useCallback((state: string) => {
+    connStateRef.current = state;
+    setConnectionState(state);
   }, []);
 
   const onIceGatheringStateChange = useCallback(() => {
@@ -76,21 +83,78 @@ export function useWebRTC() {
     }
   }, [sessionId, streamId]);
 
-  const onIceConnectionStateChange = useCallback(() => {
-    if (peerConnectionRef.current) {
-      const state = peerConnectionRef.current.iceConnectionState;
-      setIceConnectionState(state);
-      if (state === 'failed' || state === 'closed') {
-        detachRemoteVideo();
-        stopAllStreams();
-        closePC();
-      } else if (state === 'disconnected') {
-        detachRemoteVideo();
-        console.log('🔄 ICE disconnected, marking for reconnection');
-        setConnectionState('needs-reconnect');
+  const onIceConnectionStateChange = useCallback(async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    const state = pc.iceConnectionState;
+    setIceConnectionState(state);
+
+    /* 1️⃣ Primero intenta restartIce (rápido y sin renegociar) */
+    if (state === 'disconnected') {
+      console.warn('🔄 ICE disconnected – trying restartIce');
+      
+      // Feature test para compatibilidad
+      if (typeof pc.restartIce === 'function') {
+        try {
+          await pc.restartIce();
+          return; // 🎉 se recuperó, no hacemos más
+        } catch {
+          console.warn('restartIce() failed, proceeding with full reconnection');
+        }
+      } else {
+        console.warn('restartIce() not supported in this browser');
       }
     }
-  }, [detachRemoteVideo]);
+
+    /* 2️⃣ Reconexión completa sólo si restartIce no funcionó */
+    if (state === 'failed' || state === 'disconnected') {
+      console.warn('❌ ICE', state, '– reconnecting WebRTC');
+
+      // 🔒 Evita doble reconexión usando ref (sin race conditions)
+      if (connStateRef.current === 'reconnecting') {
+        console.log('Already reconnecting, skipping duplicate attempt');
+        return;
+      }
+      setConnectionStateSync('reconnecting');
+
+      // a) Limpia controladores vivos
+      didAbortController.current?.abort();
+      didAbortController.current = null;
+
+      // b) Cierra la conexión actual
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+        webSocketRef.current = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+
+      // c) Pequeño respiro para liberar puertos
+      await new Promise(r => setTimeout(r, 800));
+
+      // d) Reconecta con la misma config
+      if (apiConfigRef.current) {
+        try {
+          // Llamar directamente a la lógica de conexión sin referencias circulares
+          const ws = await connectToWebSocket(apiConfigRef.current.webSocketUrl, apiConfigRef.current.token);
+          if (ws) {
+            webSocketRef.current = ws;
+            setConnectionStateSync('connected');
+            console.log('✅ ICE reconnection successful');
+          }
+        } catch (error) {
+          console.error('❌ Failed to reconnect:', error);
+          setConnectionStateSync('needs-reconnect');
+        }
+      } else {
+        console.error('No apiConfig – manual reconnect needed');
+        setConnectionStateSync('needs-reconnect');
+      }
+    }
+  }, [detachRemoteVideo, setConnectionStateSync]);
 
   const onConnectionStateChange = useCallback(() => {
     if (peerConnectionRef.current) {

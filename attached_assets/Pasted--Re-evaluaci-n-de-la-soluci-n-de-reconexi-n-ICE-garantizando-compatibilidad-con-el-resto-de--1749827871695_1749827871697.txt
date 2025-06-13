@@ -1,0 +1,156 @@
+### Re-evaluación de la solución de reconexión ICE
+
+*(garantizando compatibilidad con el resto de tu código y sin romper dependencias)*
+
+---
+
+## 1. Objetivo
+
+* **Restablecer** audio/vídeo cuando `iceConnectionState` pase a `disconnected` o `failed`.
+* **No duplicar** lógicas ya existentes (disconnect / connect / onTrack).
+* **Evitar efectos colaterales**: conservar hooks, refs y AbortControllers activos.
+
+---
+
+## 2. Cambios mínimos y seguros
+
+> **Sólo tocaremos `useWebRTC.ts`**.
+> Nada en UI, hooks de LLM, VAD, ni lógica de avatar se modifica.
+
+### 2.1. Añade una referencia a la configuración
+
+```ts
+// 🔝 cerca de los demás useRef
+const apiConfigRef = useRef<any>(null);
+```
+
+En la función `connect(apiConfig)` **guarda** la config:
+
+```ts
+apiConfigRef.current = apiConfig;   // ⬅️ nueva línea
+```
+
+*No afecta a las llamadas existentes: `connect()` sigue recibiendo el objeto*.
+
+---
+
+### 2.2. Refactor de `onIceConnectionStateChange`
+
+```ts
+const onIceConnectionStateChange = useCallback(async () => {
+  const pc = peerConnectionRef.current;
+  if (!pc) return;
+
+  const state = pc.iceConnectionState;
+  setIceConnectionState(state);
+
+  /* 1️⃣  primero intenta restartIce (rápido y sin renegociar) */
+  if (state === 'disconnected') {
+    console.warn('🔄 ICE disconnected – trying restartIce');
+    try {
+      await pc.restartIce();
+      return;                       // 🎉 se recuperó, no hacemos más
+    } catch {
+      console.warn('restartIce() not supported or failed');
+    }
+  }
+
+  /* 2️⃣  reconexión completa sólo si restartIce no funcionó  */
+  if (state === 'failed' || state === 'disconnected') {
+    console.warn('❌ ICE', state, '– reconnecting WebRTC');
+
+    // 🔒 evita doble reconexión
+    if (connectionStateRef.current === 'reconnecting') return;
+    setConnectionState('reconnecting');
+
+    // a) Limpia controladores vivos
+    didAbortController.current?.abort();
+    didAbortController.current = null;
+
+    // b) Cierra la conexión actual
+    await disconnect();             // tu función existente
+
+    // c) Pequeño respiro para liberar puertos
+    await new Promise(r => setTimeout(r, 800));
+
+    // d) Reconecta con la misma config
+    if (apiConfigRef.current) {
+      await connect(apiConfigRef.current);
+      setConnectionState('connected');
+    } else {
+      console.error('No apiConfig – manual reconnect needed');
+      setConnectionState('needs-reconnect');
+    }
+  }
+}, [disconnect, connect]);
+```
+
+**Por qué es seguro**
+
+* No cambias la signatura de callbacks existentes.
+* Usa `restartIce()` cuando el navegador lo soporta (Chrome 111+, Edge, Opera) ⇒ reconexión “invisible”.
+* Solo llama a `disconnect()`/`connect()` cuando es imprescindible.
+* Controla el estado con `connectionStateRef` para no disparar reconexiones simultáneas.
+
+---
+
+### 2.3. `onTrack` ya es compatible
+
+Asegúrate de tener:
+
+```ts
+peerConnection.ontrack = (e) => {
+  const stream = e.streams[0];
+  if (videoRef.current && stream) {
+    videoRef.current.srcObject = stream;
+    videoRef.current.play().catch(() => {});
+  }
+};
+```
+
+> No hace falta tocarlo: al crear un `RTCPeerConnection` nuevo siempre disparará `ontrack`.
+
+---
+
+### 2.4. Sin cambios en otras dependencias
+
+* `disconnect()` y `connect()` ya existen y limpian/crean el WebSocket & PC → no se duplican.
+* **Api**: no introduces imports nuevos.
+* **AbortControllers**: solo los cancelas si se reconecta (buena práctica).
+* **UI**: `setConnectionState('reconnecting' | 'connected')` usa los mismos valores que ya manejas en `ControlPanel`.
+
+---
+
+## 3. Prueba de humo (manual)
+
+1. **Envía 3-4 mensajes**: debe oírse y verse el avatar en todos.
+2. En la pestaña *Network ➜ WebRTC* de Chrome devtools, pulsa **“Force Disconnect”**.
+
+   * Verás `🔄 ICE disconnected – trying restartIce`.
+   * Si `restartIce` funciona, el vídeo continúa sin cortes.
+   * Si no, aparecerá el log “reconnecting WebRTC” y, tras \~1 s, el clip vuelve a escucharse.
+3. Verifica que el indicador de UI pase de ***Reconnecting → Connected*** automáticamente.
+
+---
+
+## 4. Checklist de compatibilidad
+
+| Componente                    | Impacto                                                             | Acción necesaria |
+| ----------------------------- | ------------------------------------------------------------------- | ---------------- |
+| **LLM / VAD**                 | Ninguno                                                             | N/A              |
+| **useLLM**                    | Controlador se aborta solo durante reconexión (no rompe flujo).     | Nada             |
+| **AvatarVideo**               | Recibe nueva pista vía `ontrack`.                                   | Nada             |
+| **useVoiceActivityDetection** | Sin cambios.                                                        | Nada             |
+| **Barge-in / abortTurn**      | Funciona igual; `didAbortController` se limpia antes de reconectar. | Nada             |
+
+---
+
+## Conclusión
+
+Implementando **solo** los fragmentos anteriores:
+
+* Evitas pantallas negras y pérdida de audio.
+* Mantienes intactas las dependencias.
+* Minimiza reconexiones redundantes gracias a `restartIce`.
+
+Puedes proceder con seguridad. Si durante test ves ICE “failed” repetitivo, aumenta el delay `setTimeout(r, 1500)` para dar margen al sistema operativo.

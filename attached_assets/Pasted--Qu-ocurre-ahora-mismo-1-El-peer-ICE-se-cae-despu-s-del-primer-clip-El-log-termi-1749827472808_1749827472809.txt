@@ -1,0 +1,62 @@
+### Qué ocurre ahora mismo
+
+1. **El peer ICE se cae después del primer clip**
+
+   * El log termina en: `🔄 ICE disconnected, marking for reconnection`.
+   * Cuando el estado ICE pasa a **disconnected** o **failed**, el navegador detiene todas las pistas de audio/vídeo que llegaban por ese `RTCPeerConnection`. Por eso ya no hay imagen ni sonido, aunque sigas recibiendo eventos de D-ID.
+
+2. **No ejecutas la reconexión**
+
+   * Marcaste “for reconnection”, pero en tu hook `useWebRTC` no hay código que haga `pc.restartIce()` o que cree un nuevo `RTCPeerConnection` y vuelva a negociar.
+   * Resultado: sigues enviando `init-stream`/`stream-text`, D-ID responde con `stream/ready` y `stream/started`, **pero no hay ningún receptor activo** en tu lado, de modo que no llega media y el vídeo queda negro (y sin audio).
+
+---
+
+## Solución en dos pasos
+
+| Paso                                          | Qué hacer                                                                                                                                                                                                             | Dónde                              |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **A. Autorreconexión ICE**                    | 1. Escucha `iceConnectionState`.<br>2. Si pasa a `disconnected` o `failed`, llama:<br>`disconnectWebRTC(); await connectWebRTC(apiConfig);`                                                                           | `useWebRTC.ts`                     |
+| **B. Re-asignar el `srcObject` al `<video>`** | Asegúrate de que, en el handler `pc.ontrack`, siempre ejecutes:<br>`videoRef.current.srcObject = event.streams[0]; videoRef.current.play();`<br>Esto garantiza que el elemento use la nueva pista tras la reconexión. | `useWebRTC.ts` o `AvatarVideo.tsx` |
+
+---
+
+### Código listo para pegar
+
+#### 1. En `useWebRTC.ts`
+
+```ts
+/* Re-conexión automática cuando el ICE cae */
+peerConnection.oniceconnectionstatechange = async () => {
+  const state = peerConnection.iceConnectionState;
+  if (state === 'disconnected' || state === 'failed') {
+    console.warn('ICE', state, '– reconnecting WebRTC');
+    await disconnect();                // tu función existente
+    await connect(config);             // crea pc y websocket nuevos
+  }
+};
+```
+
+#### 2. En tu `ontrack`
+
+```ts
+peerConnection.ontrack = (event) => {
+  const stream = event.streams[0];
+  if (videoRef.current) {
+    videoRef.current.srcObject = stream;
+    videoRef.current.play().catch(() => {});
+  }
+};
+```
+
+*(Si ya tienes este `ontrack`, verifica que se ejecute después de la reconexión.)*
+
+---
+
+### Qué cambia
+
+1. Cuando D-ID detecte tu `connect()` nuevo, enviará de nuevo `stream/ready` y a continuación `stream/started`.
+2. El nuevo `RTCPeerConnection` recibirá pistas fresh y `ontrack` las asignará al `<video>`.
+3. El avatar volverá a verse y escucharse en todos los turnos, incluso después de interrupciones o timeouts.
+
+Aplica estos dos cambios y prueba otra vez: deberías ver la animación / audio en cada respuesta sin que se quede la pantalla negra.
