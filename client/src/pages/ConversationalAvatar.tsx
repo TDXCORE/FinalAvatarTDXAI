@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import AvatarVideo from "@/components/AvatarVideo";
 import ConversationPanel from "@/components/ConversationPanel";
@@ -63,6 +63,26 @@ export default function ConversationalAvatar() {
     }
   });
 
+  // Bot speaking state for interrupt detection
+  const isBotSpeaking = streamingState === 'streaming';
+
+  // Interrupt handler
+  const handleInterrupt = useCallback(async () => {
+    console.log('🚨 Handling user interrupt');
+    
+    // 1. Abort current LLM request
+    abortCurrentRequest();
+    
+    // 2. Cancel current D-ID stream
+    cancelCurrentStream();
+    
+    // 3. Reset latency tracking
+    setLatency(null);
+    setLatencyStart(null);
+    
+    addConversationMessage('system', 'Conversación interrumpida. Continúa hablando...');
+  }, [abortCurrentRequest, cancelCurrentStream]);
+
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({
     onSpeechEnd: async (audioBlob) => {
@@ -98,7 +118,9 @@ export default function ConversationalAvatar() {
     },
     onSpeechStart: () => {
       console.log('🎤 Voice detected, listening...');
-    }
+    },
+    isBotSpeaking,
+    onInterrupt: handleInterrupt
   });
 
   useEffect(() => {
