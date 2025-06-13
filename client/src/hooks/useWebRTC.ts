@@ -248,37 +248,20 @@ export function useWebRTC() {
     console.log('[CLEAR-VIDEO] Attempting cleanup during interruption');
     
     if (currentRemoteStream.current && videoRef.current) {
-      const trackCount = currentRemoteStream.current.getVideoTracks().length;
-      console.log('[CLEAR-VIDEO] Video tracks found:', trackCount);
+      console.log('[CLEAR-VIDEO] Stopping all video tracks permanently');
       
-      if (trackCount > 1) {
-        console.log('[CLEAR-VIDEO] Multiple tracks detected, cleaning up');
-        videoRef.current.pause();
-        
-        // Detener pistas anteriores (mantener solo la última)
-        const videoTracks = currentRemoteStream.current.getVideoTracks();
-        videoTracks.slice(0, -1).forEach(track => {
-          track.stop();
-          currentRemoteStream.current!.removeTrack(track);
-        });
-      } else if (trackCount === 1) {
-        // Si solo hay una pista, desconectar temporalmente srcObject
-        console.log('[CLEAR-VIDEO] Single track, temporarily disconnecting srcObject');
-        
-        // Guardar referencia del stream actual
-        const currentStream = videoRef.current.srcObject as MediaStream;
-        
-        // Desconectar temporalmente para evitar overlapping
-        videoRef.current.srcObject = null;
-        
-        // Reconectar cuando el nuevo clip esté completamente listo
-        setTimeout(() => {
-          if (streamingStateRef.current !== 'streaming' && currentStream) {
-            videoRef.current!.srcObject = currentStream;
-            console.log('[CLEAR-VIDEO] srcObject reconnected after interruption');
-          }
-        }, 400);
-      }
+      // Detener TODAS las pistas de video del stream actual
+      currentRemoteStream.current.getVideoTracks().forEach(track => {
+        track.stop();
+        console.log('[CLEAR-VIDEO] Video track stopped:', track.id);
+      });
+      
+      // Limpiar el elemento video
+      videoRef.current.srcObject = null;
+      console.log('[CLEAR-VIDEO] Video element cleared completely');
+      
+      // Resetear la referencia del stream
+      currentRemoteStream.current = null;
     }
   }, [videoRef]);
 
