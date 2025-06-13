@@ -410,20 +410,20 @@ export function useWebRTC() {
 
   // Wait for real stream/done event - always wait for D-ID confirmation
   const waitForRealDone = useCallback((timeout = 2000): Promise<void> => {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       let resolved = false;
       
       // Always set up a timeout fallback
       const tid = setTimeout(() => {
         if (!resolved) {
-          console.warn('[waitForRealDone] timeout reached, proceeding anyway');
+          console.warn('[waitForRealDone] timeout reached, connection may be stale');
           resolved = true;
           // Remove from pending resolvers
           const index = pendingDoneResolvers.current.indexOf(resolveWrapper);
           if (index > -1) {
             pendingDoneResolvers.current.splice(index, 1);
           }
-          resolve();
+          reject(new Error('Stream cancellation timeout'));
         }
       }, timeout);
 
@@ -481,8 +481,17 @@ export function useWebRTC() {
       setStreamEvent('cancelled');
       
       // Wait for real stream/done event
-      await waitForRealDone();
-      console.log('✅ Stream cancellation confirmed');
+      try {
+        await waitForRealDone();
+        console.log('✅ Stream cancellation confirmed');
+      } catch (error) {
+        console.warn('❌ Stream cancellation timeout - forcing state reset');
+        // Force reset the streaming state to allow new streams
+        setStreamingState('empty');
+        setStreamEvent('force-reset');
+        // Clear any pending resolvers
+        pendingDoneResolvers.current = [];
+      }
     } catch (error) {
       console.error('Error during stream cancellation:', error);
     } finally {
