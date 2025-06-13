@@ -315,15 +315,6 @@ export function useWebRTC() {
       ws.onerror = (error) => {
         console.error('🔌 D-ID WebSocket error:', error);
       };
-      
-      // Keep connection alive with periodic heartbeat
-      const heartbeatInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        } else {
-          clearInterval(heartbeatInterval);
-        }
-      }, 30000); // Send ping every 30 seconds
 
       // Initialize stream
       const initStreamMessage = {
