@@ -51,28 +51,21 @@ export function useWebRTC() {
 
   const onIceCandidate = useCallback((event: RTCPeerConnectionIceEvent) => {
     console.log('onIceCandidate', event);
-    if (event.candidate) {
+    if (event.candidate && webSocketRef.current) {
       const { candidate, sdpMid, sdpMLineIndex } = event.candidate;
       sendMessage(webSocketRef.current, {
         type: 'ice',
         payload: {
           session_id: sessionId,
+          stream_id: streamIdRef.current,
           candidate,
           sdpMid,
           sdpMLineIndex,
-        },
-      });
-    } else {
-      sendMessage(webSocketRef.current, {
-        type: 'ice',
-        payload: {
-          stream_id: streamId,
-          session_id: sessionId,
-          presenter_type: 'clip',
+          presenter_type: 'clip'
         },
       });
     }
-  }, [sessionId, streamId]);
+  }, [sessionId]);
 
   const onIceConnectionStateChange = useCallback(() => {
     if (peerConnectionRef.current) {
