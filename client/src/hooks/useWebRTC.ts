@@ -407,6 +407,13 @@ export function useWebRTC() {
     return new Promise((resolve) => {
       let resolved = false;
       
+      // If stream is already not streaming, resolve immediately
+      if (streamingState !== 'streaming') {
+        console.log('Stream already finished, resolving immediately');
+        resolve();
+        return;
+      }
+      
       const tid = setTimeout(() => {
         if (!resolved) {
           console.warn('[waitForRealDone] timeout, seguimos...');
@@ -438,11 +445,17 @@ export function useWebRTC() {
         }, 300);
       }
     });
-  }, []);
+  }, [streamingState]);
 
   const cancelCurrentStream = useCallback(async (): Promise<void> => {
     if (!webSocketRef.current || !streamId || !sessionId || cancellingRef.current) {
       console.log('No active stream to cancel or already cancelling');
+      return;
+    }
+
+    // Check if stream is actually still streaming
+    if (streamingState !== 'streaming') {
+      console.log('Stream already finished, no cancellation needed');
       return;
     }
 
