@@ -1,0 +1,94 @@
+### 🔎 Causa real del **timeout que no desaparece**
+
+Después de revisar la documentación pública de **D-ID “clips/stream”** y varios repos open-source (ej. `d-id/live-streaming-demo`) encontramos que:
+
+1. Con el endpoint `DELETE /streams/{id}` la API **no** envía siempre un evento `stream/done` por WebSocket.
+   *Para muchos planes sólo devuelve **204** por HTTP y cierra los SRTP pipes; el socket puede quedarse silencioso.*
+2. El único mensaje de cierre que a veces llega es `stream/error` (si falló) o un `RTC disconnect`, no un “done”.
+
+Por eso tu `waitForRealDone()` **siempre dispara el timeout**: estás esperando un evento que D-ID no garantiza.
+
+---
+
+## 🛠️ Cómo debe comportarse la cancelación
+
+| Paso                                             | Qué usar como “confirmación”                 | Por qué                                                            |
+| ------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------ |
+| 1. `DELETE /streams/{id}`                        | **El 204/200 HTTP** devuelto                 | Es la única señal contractual de que D-ID aceptó cortar el stream. |
+| 2. Esperar 100–150 ms (máx)                      | *Opcional* – deja que el backend cierre SRTP | Evita paquetes rezagados, pero no dependas de WebSocket.           |
+| 3. `stopAllRemoteTracks()` + `pc.close()`        | Cierra vídeo local                           | Garantiza que el avatar se congele.                                |
+| 4. `setStreamingState('empty')` → `flushQueue()` | Reanuda el ciclo                             | No hay más esperas ni re-connect si el DELETE fue 204.             |
+
+El “re-connect” sólo se necesita **si el DELETE falla** (4xx/5xx) o el WebSocket ya está cerrado.
+
+---
+
+## 🚧 Cambios mínimos en tu código
+
+### 1. Simplifica `cancelCurrentStream()`
+
+```ts
+const cancelCurrentStream = useCallback(async () => {
+  if (!currentStreamIdRef.current || cancellingRef.current) return;
+  cancellingRef.current = true;
+  setStreamingState('cancelling');
+
+  try {
+    const res = await fetch(`${DID_API}/streams/${currentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    // ✅ 204 o 200 = éxito
+    if (res.ok) {
+      await new Promise(r => setTimeout(r, 120));   // 120 ms grace
+    } else {
+      throw new Error(`DELETE failed ${res.status}`);
+    }
+  } catch (err) {
+    console.error('[cancel] HTTP error, will reconnect', err);
+    markNeedsReconnect();        // ← tu lógica actual de back-off
+  } finally {
+    stopAllRemoteTracks();       // corta vídeo local
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+
+    currentStreamIdRef.current = null;
+    pendingDoneResolvers.current = [];   // limpia promesas
+    setStreamingState('empty');
+    cancellingRef.current = false;
+  }
+}, [apiKey]);
+```
+
+### 2. Borra `waitForRealDone()`
+
+Ya no necesitas escucharlo; déjalo únicamente para planes Enterprise donde “done” existe, pero **no bloquees**.
+
+```ts
+//  if (listenDoneEvents) await waitForRealDone(ws);
+```
+
+Pon `listenDoneEvents = false` por defecto.
+
+### 3. Manten la cola “último-gana”
+
+Sigue usando `pendingMsgRef.current` y el buffer de 200 ms tras `stream/ready` antes de `flushPendingMessage()`.
+
+---
+
+## ✅ Resultado esperado
+
+```
+stream/started
+INTERRUPT
+  ↳ DELETE /streams/A  (204 en 50-80 ms)
+  ↳ wait 120 ms
+  ↳ stopTracks + pc.close()
+  ↳ state='empty'
+  ↳ flush queue → stream/started B
+```
+
+Ya **no aparecerá** `[waitForRealDone] timeout`, no tendrás reconexiones innecesarias, y el avatar reproducirá siempre la última respuesta del LLM tras cada interrupción.
+
+Haz una prueba con 10 interrupciones seguidas: deberías ver un `DELETE` y, \~300 ms después, un `stream/started` nuevo, sin “needs-reconnect” en el medio.

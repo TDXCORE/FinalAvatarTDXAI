@@ -10,6 +10,7 @@ export function useWebRTC() {
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pendingMsgRef = useRef<string | null>(null);
   const pendingDoneResolvers = useRef<(() => void)[]>([]);
+  const apiConfigRef = useRef<any>(null);
   
   const [connectionState, setConnectionState] = useState('');
   const [iceConnectionState, setIceConnectionState] = useState('');
@@ -282,6 +283,9 @@ export function useWebRTC() {
   const connect = useCallback(async (apiConfig: any) => {
     stopAllStreams();
     closePC();
+    
+    // Store API config for HTTP requests
+    apiConfigRef.current = apiConfig;
 
     try {
       // Connect to D-ID WebSocket
@@ -418,36 +422,28 @@ export function useWebRTC() {
 
 
 
-  // Wait for real stream/done event - always wait for D-ID confirmation
-  const waitForRealDone = useCallback((timeout = 1000): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      let resolved = false;
+  // HTTP-based stream cancellation - no WebSocket event waiting needed
+  const deleteStreamHTTP = useCallback(async (streamIdToDelete: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`https://api.d-id.com/clips/streams/${streamIdToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${apiConfigRef.current?.key}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // Always set up a timeout fallback
-      const tid = setTimeout(() => {
-        if (!resolved) {
-          console.warn('[waitForRealDone] timeout reached, connection may be stale');
-          resolved = true;
-          // Remove from pending resolvers
-          const index = pendingDoneResolvers.current.indexOf(resolveWrapper);
-          if (index > -1) {
-            pendingDoneResolvers.current.splice(index, 1);
-          }
-          reject(new Error('Stream cancellation timeout'));
-        }
-      }, timeout);
-
-      const resolveWrapper = () => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(tid);
-          resolve();
-        }
-      };
-
-      // Always wait for the real event, regardless of local state
-      pendingDoneResolvers.current.push(resolveWrapper);
-    });
+      if (response.ok) {
+        console.log('✅ Stream deleted via HTTP:', response.status);
+        return true;
+      } else {
+        console.warn('❌ DELETE failed:', response.status, response.statusText);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ DELETE request failed:', error);
+      return false;
+    }
   }, []);
 
   // Cleanup WebSocket listeners to prevent memory leaks
@@ -524,48 +520,40 @@ export function useWebRTC() {
     setStreamingState('empty'); // Set to empty after stopping tracks
     
     try {
-      const deleteMessage = {
-        type: 'delete-stream',
-        payload: {
-          session_id: sessionId,
-          stream_id: streamId
-        }
-      };
+      // HTTP DELETE to D-ID API instead of WebSocket message
+      const deleteSuccess = await deleteStreamHTTP(streamId);
       
-      sendMessage(webSocketRef.current, deleteMessage);
-      setStreamEvent('cancelled');
-      
-      // Wait for real stream/done event
-      try {
-        await waitForRealDone();
-        console.log('✅ Stream cancellation confirmed');
-      } catch (error) {
-        console.warn('❌ Stream cancellation timeout - reconnecting to D-ID');
-        // Force reset the streaming state 
-        setStreamingState('empty');
-        setStreamEvent('reconnecting');
-        // Clear any pending resolvers
-        pendingDoneResolvers.current = [];
+      if (deleteSuccess) {
+        // Grace period for SRTP cleanup
+        await new Promise(resolve => setTimeout(resolve, 120));
+        console.log('✅ Stream deletion confirmed via HTTP');
+        setStreamEvent('cancelled');
+      } else {
+        // DELETE failed, need to reconnect
+        console.warn('❌ DELETE failed, marking for reconnection');
         
-        // Close and reconnect WebSocket to clear D-ID session state
+        // Close WebSocket to force reconnection
         if (webSocketRef.current) {
           cleanupWebSocketListeners();
           webSocketRef.current.close();
           webSocketRef.current = null;
         }
         
-        // Mark for reconnection - the parent component will handle this
         setTimeout(() => {
           setStreamEvent('needs-reconnect');
-          console.log('🔄 Marked for D-ID reconnection after timeout');
         }, 500);
       }
+      
+      // Clear any pending resolvers
+      pendingDoneResolvers.current = [];
+      
     } catch (error) {
-      console.error('Error during stream cancellation:', error);
+      console.error('Error during HTTP DELETE:', error);
+      setStreamEvent('needs-reconnect');
     } finally {
       cancellingRef.current = false;
     }
-  }, [streamId, sessionId, waitForRealDone]);
+  }, [streamId, sessionId, deleteStreamHTTP, cleanupWebSocketListeners]);
 
   return {
     connect,
