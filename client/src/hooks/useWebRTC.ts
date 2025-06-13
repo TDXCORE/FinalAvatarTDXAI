@@ -222,11 +222,18 @@ export function useWebRTC() {
       }
 
       if (status === 'ready') {
-        setTimeout(() => {
-          console.log('stream/ready');
-          setIsStreamReady(true);
-          setStreamEvent('ready');
-        }, 1000);
+        console.log('stream/ready');
+        isStreamReadyRef.current = true;
+        setIsStreamReady(true);
+        setStreamEvent('ready');
+      } else if (status === 'started') {
+        isStreamReadyRef.current = false;
+        setIsStreamReady(false);
+        setStreamEvent(status);
+      } else if (['done', 'error'].includes(status)) {
+        isStreamReadyRef.current = true;
+        setIsStreamReady(true);
+        setStreamEvent(status);
       } else {
         console.log(event);
         setStreamEvent(status === 'dont-care' ? event : status);
