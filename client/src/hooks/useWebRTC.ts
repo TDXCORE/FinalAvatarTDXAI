@@ -216,7 +216,8 @@ export function useWebRTC() {
 
       if (status === 'ready') {
         console.log('stream/ready');
-        // Don't update streamId here - it should come from WebSocket init-stream response
+        console.log('✅ New stream ready after cleanup');
+        // streamId should already be updated from WebSocket init-stream response
         isStreamReadyRef.current = true;
         setIsStreamReady(true);
         setStreamEvent('ready');
@@ -346,9 +347,9 @@ export function useWebRTC() {
             streamIdRef.current = newStreamId;
             setSessionId(newSessionId);
             console.log('D-ID stream initialized:', newStreamId, newSessionId);
-            // Set ready state immediately after getting new streamId
-            isStreamReadyRef.current = true;
-            setIsStreamReady(true);
+            // Don't set ready state here - wait for stream/ready from data channel
+            isStreamReadyRef.current = false;
+            setIsStreamReady(false);
             
             try {
               const sessionClientAnswer = await createPeerConnection(offer, iceServers);
@@ -488,24 +489,8 @@ export function useWebRTC() {
         type: 'init-stream',
         payload: {
           session_id: sessionId,
-          source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
-          voice_id: 'VJDM6h2UlTvT5qgGHZPj',
-          voice: {
-            type: 'voice_id',
-            voice_id: 'VJDM6h2UlTvT5qgGHZPj',
-            voice_config: {
-              pitch: 1,
-              speed: 1.2,
-              volume: 1
-            }
-          },
-          config: {
-            stream_warmup: true,
-            stitch: true,
-            fluent: true
-          },
-          driver_id: 'e3nbserss8',
-          presenter_type: 'clip'
+          driver_url: 'bank://lively',
+          voice_id: 'ucWwAruuGtBeHfnAaKcJ'
         }
       };
       sendMessage(webSocketRef.current, initStreamMessage);
@@ -522,10 +507,12 @@ export function useWebRTC() {
     console.log('🎯 Sending text to D-ID avatar:', text);
     
     // Ensure we have a valid streamId before proceeding
-    if (!streamId) {
+    if (!streamIdRef.current) {
       console.error('❌ No streamId available - cannot send text');
       return;
     }
+    
+    console.log('🔑 Using streamId:', streamIdRef.current, 'sessionId:', sessionId);
     
     // Check if stream is ready before sending
     if (!isStreamReadyRef.current) {
