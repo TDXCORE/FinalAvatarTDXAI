@@ -70,6 +70,7 @@ export default function ConversationalAvatar() {
 
   // Interrupt handler
   const handleInterrupt = useCallback(async () => {
+    console.log('[INT-check]', streamingStateRef.current, cancellingRef.current);
     if (streamingStateRef.current !== 'streaming' || cancellingRef.current) return;
     
     console.log('🚨 Handling user interrupt');

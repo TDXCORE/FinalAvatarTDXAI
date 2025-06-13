@@ -1,0 +1,66 @@
+Qué pasó con la segunda interrupción (y por qué no se disparó)
+Clave	Evidencia	Interpretación
+No aparece 🚨 Manual interrupt detected… en la segunda ocasión	El VAD sí detectó voz (tú hablaste), pero el guard de handleInterrupt() devolvió sin actuar.	El “cortafuegos” `if (streamingStateRef.current !== 'streaming'
+stream/started se ve en consola	El backend arrancó el nuevo turno y mandó los paquetes.	Luego sí debimos tener streamingState = 'streaming'.
+Tras unos segundos: stopping video streams → … → D-ID WebSocket closed	La app detectó inactividad o ICE disconnected y ejecutó autolimpieza.	Señal de que el bucle quedó “atascado” y el watchdog mató la conexión.
+
+Posibles banderas que bloquean la segunda interrupción
+cancellingRef.current quedó en true
+
+Después del primer cancelCurrentStream() el finally debía poner
+cancellingRef.current = false;
+
+Si por alguna rama (“sin stream activo”, error de DELETE, etc.) el finally no corrió, la flag sigue true ⇒ todas las llamadas siguientes a handleInterrupt() se descartan.
+
+streamingStateRef.current no volvió a 'streaming'
+
+Tú cambias streamingState = 'streaming' en el handler de stream/started.
+
+Si cuando llegó ese evento el estado aún estaba en 'cancelling' (porque la flag anterior no se limpió), el setter pudo abortarse por el mismo guard, quedándose en 'cancelling' o 'empty'.
+
+En ambos casos el if de protección se cumple y la ruta de interrupción se “auto-desactiva”.
+
+Cómo confirmarlo sin tocar código
+Log temporal de flags
+Añade una sola línea arriba del guard:
+
+ts
+Copiar
+console.log('[INT-check]', streamingStateRef.current, cancellingRef.current);
+Reproduce: primer interrupt → ok; segundo → mira si alguno vale true o 'cancelling'.
+
+Verifica el finally de cancelCurrentStream()
+Observa si realmente se ejecuta en todos los caminos (éxito y error).
+Un return anticipado o catch con throw impediría limpiar la flag.
+
+Comprueba el handler de stream/started
+Asegúrate de que siempre llama setStreamingState('streaming') incluso cuando el estado anterior es 'cancelling'.
+
+Qué ocurre con el vídeo negro al final
+Debido a que no se ejecutó la interrupción:
+
+Los tracks siguen vivos (no se detuvieron), por eso no ves “freeze”, simplemente el nuevo audio/vídeo pisa encima.
+
+Al cabo de unos segundos, D-ID detiene el stream porque nunca recibe text nuevo ni delete → la conexión entra en disconnected, disparando tu rutina de “stopping video streams…”.
+
+Próximo paso de depuración
+Flag stuck → si se confirma, garantiza que el finally del cancelador siempre se ejecute y ponga las dos variables (cancellingRef = false, streamingState = 'empty').
+
+Race ‘cancelling’ → ‘streaming’ → si el setter se salta cuando la flag aún está true, mueve setStreamingState('streaming') fuera del guard o ponlo en un queueMicrotask para que se ejecute después de que la flag se limpie.
+
+Una vez las banderas vuelvan a su ciclo normal (false / 'streaming') la interrupción debería volver a dispararse indefinidamente sin cerrar la conexión.
+
+
+
+
+
+
+
+
+
+
+Herramientas
+
+
+
+ChatGPT puede cometer errores. Considera verifi

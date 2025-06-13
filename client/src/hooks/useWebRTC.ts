@@ -180,6 +180,7 @@ export function useWebRTC() {
           status = 'started';
           setStreamingState('streaming');
           streamingStateRef.current = 'streaming';
+          console.log('[STREAM-started]', 'state updated to:', streamingStateRef.current);
           break;
         case 'stream/done':
           status = 'done';
@@ -553,6 +554,7 @@ export function useWebRTC() {
       cancellingRef.current = false;
       
       console.log('🔄 Stream cancellation complete, RTCPeerConnection maintained');
+      console.log('[CANCEL-finally]', 'cancellingRef.current:', cancellingRef.current, 'state:', streamingStateRef.current);
     }
   }, [streamId, sessionId]);
 
