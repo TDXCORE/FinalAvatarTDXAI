@@ -52,6 +52,8 @@ export function useWebRTC() {
     setConnectionState(state);
   }, []);
 
+
+
   const onIceGatheringStateChange = useCallback(() => {
     if (peerConnectionRef.current) {
       setIceGatheringState(peerConnectionRef.current.iceGatheringState);
@@ -139,9 +141,21 @@ export function useWebRTC() {
       if (apiConfigRef.current) {
         try {
           // Llamar directamente a la lógica de conexión sin referencias circulares
-          const ws = await connectToWebSocket(apiConfigRef.current.webSocketUrl, apiConfigRef.current.token);
+          const ws = await connectToWebSocket(apiConfigRef.current.websocketUrl, apiConfigRef.current.key, cleanupWebSocketListeners);
           if (ws) {
             webSocketRef.current = ws;
+            
+            // Initialize stream again
+            const initStreamMessage = {
+              type: 'init-stream',
+              payload: {
+                presenter_id: 'v2_public_alex@qcvo4gupoy',
+                driver_id: 'e3nbserss8',
+                presenter_type: 'clip'
+              }
+            };
+            sendMessage(ws, initStreamMessage);
+            
             setConnectionStateSync('connected');
             console.log('✅ ICE reconnection successful');
           }
