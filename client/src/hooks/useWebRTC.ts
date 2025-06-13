@@ -479,10 +479,11 @@ export function useWebRTC() {
       isStreamReadyRef.current = false;
       setIsStreamReady(false);
 
-      // NUEVO: solicita stream nuevo
+      // NUEVO: solicita stream nuevo con session_id requerido
       const initStreamMessage = {
         type: 'init-stream',
         payload: {
+          session_id: sessionId,
           source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
           voice_id: 'VJDM6h2UlTvT5qgGHZPj',
           voice: {

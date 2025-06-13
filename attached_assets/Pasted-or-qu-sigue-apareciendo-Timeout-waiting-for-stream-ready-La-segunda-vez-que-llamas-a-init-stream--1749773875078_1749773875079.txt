@@ -1,0 +1,107 @@
+or qué sigue apareciendo “Timeout waiting for stream ready”
+La segunda vez que llamas a init-stream no incluyes el payload completo (al menos session_id y driver_url).
+D-ID descarta el mensaje silenciosamente y nunca envía el evento stream/ready; tu waitForReady() agota el tiempo.
+
+🛠 Correcciones exactas en useWebRTC.ts
+A continuación copio el diff mínimo.
+Si tu hook ya tiene variables con otros nombres, solo ajusta los identificadores.
+
+ts
+Copiar
+/* ---------------- helpers ---------------- */
+function buildInitStreamPayload() {
+  return {
+    session_id : sessionIdRef.current,      // ← obligatorio
+    driver_url : config.driverUrl,          // p. ej. "bank://lively"
+    voice_id   : config.voiceId             // si usas ElevenLabs
+  };
+}
+
+/* ------------- sendStreamText ------------- */
+export async function sendStreamText(
+  text: string,
+  abortCtrl?: AbortController
+) {
+  await ensureSocketOpen(config);
+
+  /* 1. Cierra stream anterior */
+  if (streamIdRef.current) {
+    wsRef.current!.send(JSON.stringify({
+      type: 'delete-stream',
+      payload: { session_id: sessionIdRef.current, stream_id: streamIdRef.current }
+    }));
+    streamIdRef.current   = null;
+    isStreamReady.current = false;
+  }
+
+  /* 2. Crea uno nuevo con payload completo */
+  wsRef.current!.send(JSON.stringify({
+    type   : 'init-stream',
+    payload: buildInitStreamPayload()       // 👈 aquí va el session_id + driver
+  }));
+
+  /* 3. Espera stream/ready */
+  await waitForReady();                     // resolverá cuando onmessage lo capture
+
+  /* 4. Ahora sí envías el texto */
+  wsRef.current!.send(JSON.stringify({
+    type   : 'stream-text',
+    payload: {
+      session_id: sessionIdRef.current,
+      stream_id : streamIdRef.current,      // lo guardas en onmessage
+      text,
+      numResults: 1
+    }
+  }));
+
+  if (abortCtrl) bindAbort(abortCtrl);      // tu lógica existente
+}
+Handler onmessage (añade o verifica)
+ts
+Copiar
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+
+  if (msg.type === 'stream/ready') {
+    streamIdRef.current   = msg.streamId;   // 👈 GUARDA el nuevo id
+    isStreamReady.current = true;
+    return;                                 // ← ahora waitForReady() resuelve
+  }
+
+  if (msg.type === 'stream/started')  isStreamReady.current = false;
+  if (['stream/done','stream/stopped','stream/error'].includes(msg.type))
+    isStreamReady.current = true;
+};
+✔️ Qué comprobar después
+En el log, justo después de init-stream debe aparecer:
+
+arduino
+Copiar
+stream/ready
+con un streamId nuevo.
+
+A continuación verás:
+
+bash
+Copiar
+sendStreamText called with: …
+stream/started
+stream/done
+para cada turno, sin más timeouts.
+
+Si interrumpes al avatar, observarás:
+
+bash
+Copiar
+stream-interrupt → stream/stopped → stream/ready
+y el siguiente turno seguirá fluido.
+
+Aplica estas líneas, guarda y prueba enviando cuatro o cinco mensajes: el avatar debe responderlos todos sin bloquearse.
+
+
+
+
+
+
+
+
