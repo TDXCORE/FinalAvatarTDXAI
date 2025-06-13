@@ -511,11 +511,8 @@ export function useWebRTC() {
     cancellingRef.current = true;
     console.log('🗑️ Cancelling current D-ID stream');
 
-    // ⏹️ 1) Detén solo los tracks remotos, mantén RTCPeerConnection viva
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.getReceivers()
-        .forEach(receiver => receiver.track?.stop());
-    }
+    // ⏹️ 1) No tocar tracks remotos - D-ID los reutilizará
+    // Eliminar track.stop() que los mata permanentemente
 
     // 🔄 Limpia el elemento <video> para que no quede congelado
     if (videoRef.current) {

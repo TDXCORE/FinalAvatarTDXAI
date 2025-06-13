@@ -1,0 +1,78 @@
+### 🧩 Por qué ahora ves vídeo negro (o silencio) después de una buena interrupción
+
+1. **Qué hacemos en la interrupción**
+
+   ```ts
+   peerConnectionRef.current
+     .getReceivers()
+     .forEach(r => r.track?.stop());   // ← track.stop()
+   videoRef.current.srcObject = null;
+   ```
+
+   Eso pone cada `MediaStreamTrack` remoto en estado **`ended`** de forma **irrevocable** (WebRTC spec §6.2).
+   Una vez marcado `ended`, **ese mismo objeto** no puede volver a transportar frames.
+
+2. **Qué hace D-ID**
+   Cuando envías el siguiente texto, D-ID **reusa el mismo transceiver** y vuelca los paquetes RTP en el *mismo* `RTCRtpReceiver`.
+   – Chrome/Edge no crean un track nuevo si el anterior ya existe.
+   – Como tu track está “muerto”, los frames llegan, pero la canalización JS → `<video>` quedó rota ⇒ pantalla negra / silencio.
+
+3. **Por qué los eventos (`stream/started`, `chat/partial`) sí llegan**
+   Esos viajan por **WebSocket**. El backend confirma que el TTS arranca, pero el canal de medios que llega al navegador ya no tiene un `MediaStreamTrack` válido al que engancharse.
+
+---
+
+## Cómo debería funcionar (sin cambiar nada más)
+
+| En la interrupción                                       | En vez de                    | Haz                                                                                                        |
+| -------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Parar los tracks                                         | `track.stop()` (❌)           | **a)** No hagas nada al track <br>**o** <br>**b)** `track.enabled = false` si quieres “mutear” localmente. |
+| Limpiar `<video>`                                        | `srcObject = null` está bien | El primer frame nuevo volverá a asignarse en `ontrack`.                                                    |
+| Deja que D-ID envíe el mismo track y Chrome lo “reviva”. | –                            |                                                                                                            |
+
+---
+
+### Qué pasa con los **receivers**
+
+* **Antes de la interrupción**
+
+  ```
+  RTCRtpReceiver#123 → MediaStreamTrack#A (live)
+  ```
+* **Haces `track.stop()`**
+
+  ```
+  #A → readyState = 'ended'
+  ```
+* **Nuevo turno, mismo transceiver**
+
+  ```
+  RTP paquetes → Receiver#123 → Track#A (ended) ➜ descartados
+  ```
+
+Si **no** haces `stop()`, el track #A sigue vivo; Chrome simplemente vuelve a entregar frames y el `<video>` se actualiza.
+
+---
+
+## Pasos para comprobarlo
+
+1. **Revertir temporalmente** la línea `track?.stop()`.
+2. Mantener todo lo demás igual.
+3. Interrumpir → debería reaparecer vídeo/voz en el siguiente `stream/started`.
+
+Si necesitas silenciar el avatar durante los 120 ms de gracia, usa:
+
+```ts
+receiver.track.enabled = false;
+setTimeout(() => receiver.track.enabled = true, 120);
+```
+
+Esto no lo marca como `ended`.
+
+---
+
+### Resumen
+
+* `track.stop()` es definitivo para **tracks remotos**: mata la ruta de medios.
+* Mantén la `RTCPeerConnection` viva y **no** invoques `stop()`; basta con vaciar el `<video>` o deshabilitar el track.
+* El resto de tu flujo (delete-stream, grace 120 ms, estado ='empty') ya es correcto. Sólo quita esa llamada y el avatar reproducirá el nuevo vídeo inmediatamente.
