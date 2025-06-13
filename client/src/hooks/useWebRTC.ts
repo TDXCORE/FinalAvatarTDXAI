@@ -92,14 +92,7 @@ export function useWebRTC() {
       
       if (state === 'connected') {
         setIsStreamReady(true);
-        // Fallback mechanism for stream ready
-        setTimeout(() => {
-          if (!isStreamReady) {
-            console.log('forcing stream/ready');
-            setIsStreamReady(true);
-            setStreamEvent('ready');
-          }
-        }, 5000);
+        // Removed forced stream ready fallback - wait for real events only
       }
     }
   }, [isStreamReady]);
@@ -352,6 +345,9 @@ export function useWebRTC() {
             streamIdRef.current = newStreamId;
             setSessionId(newSessionId);
             console.log('D-ID stream initialized:', newStreamId, newSessionId);
+            // Set ready state immediately after getting new streamId
+            isStreamReadyRef.current = true;
+            setIsStreamReady(true);
             
             try {
               const sessionClientAnswer = await createPeerConnection(offer, iceServers);
@@ -482,6 +478,32 @@ export function useWebRTC() {
       setStreamId(null);
       isStreamReadyRef.current = false;
       setIsStreamReady(false);
+
+      // NUEVO: solicita stream nuevo
+      const initStreamMessage = {
+        type: 'init-stream',
+        payload: {
+          source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
+          voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+          voice: {
+            type: 'voice_id',
+            voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+            voice_config: {
+              pitch: 1,
+              speed: 1.2,
+              volume: 1
+            }
+          },
+          config: {
+            stream_warmup: true,
+            stitch: true,
+            fluent: true
+          },
+          driver_id: 'e3nbserss8',
+          presenter_type: 'clip'
+        }
+      };
+      sendMessage(webSocketRef.current, initStreamMessage);
       
       try {
         await waitForReady(isStreamReadyRef);
