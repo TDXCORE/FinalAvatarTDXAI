@@ -408,16 +408,35 @@ export function useWebRTC() {
   // Array to store pending stream completion resolvers
   const pendingDoneResolvers = useRef<(() => void)[]>([]);
 
-  // Wait for real stream/done event - simplified and robust
-  const waitForRealDone = useCallback((): Promise<void> => {
-    // If already not streaming, resolve immediately
-    if (streamingStateRef.current !== 'streaming') {
-      console.log('Stream already finished, resolving immediately');
-      return Promise.resolve();
-    }
-
+  // Wait for real stream/done event - always wait for D-ID confirmation
+  const waitForRealDone = useCallback((timeout = 2000): Promise<void> => {
     return new Promise(resolve => {
-      pendingDoneResolvers.current.push(resolve);
+      let resolved = false;
+      
+      // Always set up a timeout fallback
+      const tid = setTimeout(() => {
+        if (!resolved) {
+          console.warn('[waitForRealDone] timeout reached, proceeding anyway');
+          resolved = true;
+          // Remove from pending resolvers
+          const index = pendingDoneResolvers.current.indexOf(resolveWrapper);
+          if (index > -1) {
+            pendingDoneResolvers.current.splice(index, 1);
+          }
+          resolve();
+        }
+      }, timeout);
+
+      const resolveWrapper = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(tid);
+          resolve();
+        }
+      };
+
+      // Always wait for the real event, regardless of local state
+      pendingDoneResolvers.current.push(resolveWrapper);
     });
   }, []);
 
