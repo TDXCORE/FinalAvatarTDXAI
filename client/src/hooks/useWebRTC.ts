@@ -285,7 +285,7 @@ export function useWebRTC() {
 
     try {
       // Connect to D-ID WebSocket
-      const ws = await connectToWebSocket(apiConfig.websocketUrl, apiConfig.key);
+      const ws = await connectToWebSocket(apiConfig.websocketUrl, apiConfig.key, cleanupWebSocketListeners);
       webSocketRef.current = ws;
 
       // Initialize stream
