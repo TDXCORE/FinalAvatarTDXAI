@@ -1,0 +1,42 @@
+stream/started
+chat/answer
+stream/done
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+🚨 Handling user interrupt
+🗑️ Cancelling current D-ID stream
+⏰ Stream cancel delay completed
+✅ Stream cancellation confirmed
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(4)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-7c2dbaee-3ca8-4563-bd1f-c4d84e7df632", object: "chat.completion", created: 1749785918, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: La historia universal abarca miles de años, desde la prehistoria hasta la actualidad. Podríamos empezar con la formación del universo, el surgimiento de las primeras civilizaciones en Egipto, Mesopotamia y Grecia, y seguir adelante con la Edad Media, el Renacimiento, la Revolución Industrial y los eventos más recientes. ¿Quieres que comencemos por una época en particular?
+Text message sent to D-ID
+[streamingState] empty isBotSpeaking: false
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(6)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-a2c8d19d-39d7-4187-a486-5ec775afd6bf", object: "chat.completion", created: 1749785933, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Parece que nuestra conversación se interrumpió. ¿Quieres que retomemos la historia universal desde el punto donde nos quedamos, o prefieres empezar de nuevo?
+Text message sent to D-ID
+[streamingState] empty isBotSpeaking: false
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(8)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-e532cbca-9654-4e74-a9f3-bb76b0343191", object: "chat.completion", created: 1749785940, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+choices: Array(1)
+created: 1749785940
+id: "chatcmpl-e532cbca-9654-4e74-a9f3-bb76b0343191"
+model: "llama-3.3-70b-versatile"
+object: "chat.completion"
+system_fingerprint: "fp_6507bcfb6f"
+usage: Object
+usage_breakdown: null
+x_groq: Object
+[[Prototype]]: Object
+Sending text to D-ID avatar: Empecemos desde el principio. La historia universal comienza con la formación del universo, hace unos 13.800 millones de años, y continúa con la aparición de la vida en la Tierra, hace unos 3.500 millones de años. ¿Quieres saber sobre la prehistoria, con la evolución del hombre y las primeras sociedades?
+Text message sent to D-ID

@@ -170,6 +170,10 @@ export function useWebRTC() {
         case 'stream/done':
           status = 'done';
           setStreamingState('empty');
+          // Notify waiting promise if exists
+          if (pendingStreamDoneRef.current) {
+            pendingStreamDoneRef.current(event);
+          }
           break;
         case 'stream/ready':
           status = 'ready';
@@ -177,6 +181,10 @@ export function useWebRTC() {
         case 'stream/error':
           status = 'error';
           setStreamingState('empty');
+          // Notify waiting promise if exists
+          if (pendingStreamDoneRef.current) {
+            pendingStreamDoneRef.current(event);
+          }
           break;
         default:
           status = 'dont-care';
@@ -391,13 +399,44 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
-  // Simplified wait helper: just use a delay to ensure D-ID processes the cancellation
-  const waitForStreamDone = useCallback((timeout = 300): Promise<void> => {
+  // Create a ref to store pending stream completion promises
+  const pendingStreamDoneRef = useRef<((eventType: string) => void) | null>(null);
+
+  // Wait for real stream/done event from data channel
+  const waitForRealDone = useCallback((timeout = 1200): Promise<void> => {
     return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log('⏰ Stream cancel delay completed');
-        resolve();
+      let resolved = false;
+      
+      const tid = setTimeout(() => {
+        if (!resolved) {
+          console.warn('[waitForRealDone] timeout, seguimos...');
+          resolved = true;
+          pendingStreamDoneRef.current = null;
+          resolve(); // fallback
+        }
       }, timeout);
+
+      // Set up resolver function
+      pendingStreamDoneRef.current = (eventType: string) => {
+        if (!resolved && (eventType === 'stream/done' || eventType === 'stream/error')) {
+          resolved = true;
+          clearTimeout(tid);
+          pendingStreamDoneRef.current = null;
+          console.log(`🔓 Real event received: ${eventType}`);
+          resolve(); // semáforo liberado
+        }
+      };
+
+      // Fallback if no data channel available
+      if (!dataChannelRef.current) {
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            pendingStreamDoneRef.current = null;
+            resolve();
+          }
+        }, 300);
+      }
     });
   }, []);
 
@@ -440,15 +479,15 @@ export function useWebRTC() {
       sendMessage(webSocketRef.current, deleteMessage);
       setStreamEvent('cancelled');
       
-      // Wait for confirmation or timeout
-      await waitForStreamDone();
+      // Wait for real stream/done event
+      await waitForRealDone();
       console.log('✅ Stream cancellation confirmed');
     } catch (error) {
       console.error('Error during stream cancellation:', error);
     } finally {
       cancellingRef.current = false;
     }
-  }, [streamId, sessionId, waitForStreamDone]);
+  }, [streamId, sessionId, waitForRealDone]);
 
   return {
     connect,

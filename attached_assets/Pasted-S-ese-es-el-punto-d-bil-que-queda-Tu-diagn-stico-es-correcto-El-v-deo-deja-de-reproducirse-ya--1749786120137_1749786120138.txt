@@ -1,0 +1,97 @@
+Sí, ese es el punto débil que queda
+Tu diagnóstico es correcto:
+
+El vídeo deja de reproducirse — ya cerramos tracks y RTCPeerConnection.
+
+Pero el backend de D-ID todavía está “terminando” el stream A; si enviamos texto para el stream B antes de que D-ID emita stream/done, la API lo procesa, pero el socket nos devuelve los eventos desordenados (el done de A llega después del started de B) y se rompe la lógica.
+
+La solución: no uses un delay fijo; usa un “semaforo” que se libere sólo cuando realmente recibas stream/done (o stream/error) del WebSocket.
+
+1. Cómo esperas el stream/done real
+ts
+Copiar
+// useWebRTC.ts
+function waitForRealDone(timeout = 1200): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const tid = setTimeout(() => {
+      if (!done) {
+        console.warn('[waitForRealDone] timeout, seguimos...');
+        resolve();                     // fallback
+      }
+    }, timeout);
+
+    const listener = (event: string) => {
+      if (event === 'stream/done' || event === 'stream/error') {
+        done = true;
+        clearTimeout(tid);
+        socket.off('message', listener as any);
+        resolve();                     // 🔓 semáforo liberado
+      }
+    };
+
+    socket.on('message', listener);
+  });
+}
+Escuchas el WebSocket.
+
+Cuando llega stream/done / stream/error, resuelves.
+
+Si no llega en timeout (1,2 s) sueltas igualmente para no colgarte.
+
+2. Integra esto en cancelCurrentStream
+diff
+Copiar
+-  await fetch(`${DID_API}/streams/${currentStreamId}`, { method:'DELETE', headers:{Authorization:`Bearer ${apiKey}`} });
+-  await waitForStreamDone();  // antiguo delay fijo
++  await fetch(`${DID_API}/streams/${currentStreamId}`, { method:'DELETE', headers:{Authorization:`Bearer ${apiKey}`} });
++  await waitForRealDone();    // espera evento real
+(Mantén el cierre inmediato de tracks antes de esta llamada, como añadimos en el parche previo).
+
+3. Bloquea cualquier envío nuevo mientras se espera
+En la función que lanza textos a D-ID:
+
+ts
+Copiar
+if (streamingState !== 'empty' || cancellingRef.current) {
+  console.log('⏳ Esperando a que D-ID termine el stream anterior…');
+  return;
+}
+sendStreamText(text);
+El flag cancellingRef.current se pone en true justo al entrar en cancelCurrentStream() y vuelve a false dentro del finally después de waitForRealDone().
+
+4. Flujo resultante
+bash
+Copiar
+stream/started (A)
+INTERRUPT
+├─ stop tracks + close PC
+├─ DELETE /streams/A
+└─ waitForRealDone()  ← bloquea
+   │
+   ├─ (≤1 s) stream/done llega ──▶ resolve()
+   └─ (≥1 s) timeout ───────────▶ resolve()
+
+[semaforo abierto]
+sendStreamText() (B)
+stream/started (B)
+Ahora nunca se enviará un nuevo stream mientras D-ID siga “cerrando” el anterior, y los eventos llegarán en orden.
+
+5. Verifica con logs
+Antes del arreglo:
+
+css
+Copiar
+stream/started A
+DELETE A
+stream/started B   ❌
+stream/done A
+Después:
+
+css
+Copiar
+stream/started A
+DELETE A
+stream/done A
+stream/started B   ✅
+Con esto eliminas la carrera restante y el pipeline queda robusto tanto en voz como en texto.
