@@ -688,6 +688,13 @@ export function useWebRTC() {
       // Grace period for SRTP cleanup
       await new Promise(resolve => setTimeout(resolve, 120));
       console.log('✅ Stream deletion grace period complete');
+
+      // NUEVO: Pausar definitivamente después del grace period
+      if (videoRef.current) {
+        videoRef.current.pause();
+        console.log('🎬 Video paused after grace period to prevent resume');
+      }
+
       // Video stream will be maintained - no detachRemoteVideo() call needed
       
       // Clear any pending resolvers

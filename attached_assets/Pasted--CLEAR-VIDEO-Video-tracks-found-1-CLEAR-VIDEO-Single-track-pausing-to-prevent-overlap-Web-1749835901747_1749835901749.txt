@@ -1,0 +1,43 @@
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_B0K4faqt7dJTNDqcQN1YC$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(6)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-bd9b9906-3855-450f-ae89-c1fd2fb5ad34", object: "chat.completion", created: 1749835873, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: El caramelo es un tema un poco diferente a la Edad Media, ¿no? El caramelo es un dulce hecho de azúcar fundida que se origina en la época medieval, pero se popularizó en la época moderna. ¿Te gustan los caramelos o tienes alguna receta favorita?
+Text message sent to D-ID
+chat/partial
+chat/answer
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_B0K4faqt7dJTNDqcQN1YC$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_B0K4faqt7dJTNDqcQN1YC$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(8)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-00d06bff-8f10-44b8-ab42-16fae72a2579", object: "chat.completion", created: 1749835880, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: ¡Hola de nuevo! ¿En qué puedo ayudarte ahora? ¿Quieres seguir hablando de la Edad Media o cambiar de tema?
+Text message sent to D-ID
+chat/partial
+chat/answer
+[STREAM-started] state updated to: streaming
+stream/started
+🔄 Stream state updated to empty via stream/done
+stream/done
