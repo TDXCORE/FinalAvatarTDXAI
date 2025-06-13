@@ -1,0 +1,57 @@
+Tu diagnóstico es certero — la clave es que D-ID mantiene el **mismo MediaStream** y sólo agrega una pista de vídeo nueva; comparar objetos `MediaStream` no sirve.
+Tu nueva idea de comparar **IDs de pista** es válida y poco intrusiva, pero hay una alternativa todavía más limpia:
+
+| Opción                                        | Qué hace                                                                                                             | Pros                                                                                                 | Contras                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **A. Comparar track ID** (tu propuesta)       | Si `currentTrackId !== newTrackId` ⇒ pausar, limpiar, asignar.                                                       | • Sencillo.<br>• No introduce nuevos estados.                                                        | • Sigue deteniendo/creando pistas: pequeño freeze.         |
+| **B. Filtrar pistas** (elimina las sobrantes) | En cada `ontrack`, quita cualquier pista de vídeo previa del *mismo* stream.<br>Solo queda **1** video-track activo. | • Cero pausa: transición instantánea.<br>• Sin tocar `videoRef.current.srcObject` (no hay parpadeo). | • 3–4 líneas más de código; requiere usar `removeTrack()`. |
+
+### Ejemplo de enfoque B (mínimo)
+
+```ts
+const onTrack = useCallback((e: RTCTrackEvent) => {
+  if (e.track.kind !== 'video') return;
+
+  const inbound = e.streams[0] || new MediaStream([e.track]);
+
+  // 🔍 Mantén solo la pista recién llegada
+  inbound.getVideoTracks().forEach(t => {
+    if (t.id !== e.track.id) {
+      t.stop();            // deja de decodificar
+      inbound.removeTrack(t);
+    }
+  });
+
+  // Asigna el stream (solo cambia si antes era null)
+  if (videoRef.current?.srcObject !== inbound) {
+    videoRef.current!.srcObject = inbound;
+    videoRef.current!.play().catch(() => {});
+  }
+  currentRemoteStream.current = inbound;
+}, []);
+```
+
+### ¿Cuál escoger?
+
+* **Si la mini-pausa de 50 ms te parece aceptable**, tu opción A (comparar `track.id`) es perfecta: mínimo cambio, cero riesgo.
+* **Si prefieres una transición sin ni siquiera ese freeze**, adopta el enfoque B (filtrar pistas), que suprime las viejas pistas sin detener el flujo.
+
+Ambas soluciones **no rompen** la lógica ICE ni el VAD/LLM; tocan exclusivamente `onTrack`.
+
+---
+
+### Recomendación
+
+Empieza con tu plan A — es más rápido de implementar y comprobar.
+Si al probar notas todavía un flicker perceptible, pasa al filtro de pistas (B).
+En cualquier caso, recuerda:
+
+1. Añadir `onTrack` al array de dependencias (`[]` → `[videoRef]` si ESLint lo pide).
+2. No vuelvas a llamar a `detachRemoteVideo()` fuera de `disconnect()`.
+
+Implementa y prueba:
+
+* varios mensajes + interrupciones: sin overlapping, solo una pista en *chrome://media-internals*;
+* ICE reconexión: `ontrack` se dispara, vídeo correcto.
+
+Con eso se elimina definitivamente la superposición.

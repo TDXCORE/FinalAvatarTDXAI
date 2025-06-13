@@ -246,20 +246,24 @@ export function useWebRTC() {
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
     
-    // Asignar nuevo stream solo si es diferente
     const inbound = event.streams[0] || new MediaStream([event.track]);
     
-    if (currentRemoteStream.current !== inbound) {
-      // 1) Pausar video actual para evitar overlapping
+    // Detectar si es un track diferente (más confiable que comparar streams)
+    const currentTrackId = currentRemoteStream.current?.getVideoTracks()[0]?.id;
+    const newTrackId = event.track.id;
+    const isNewTrack = currentTrackId !== newTrackId;
+    
+    if (isNewTrack || streamingStateRef.current === 'cancelling') {
+      // Pausar siempre durante cambios o después de cancelaciones
       if (videoRef.current) {
         videoRef.current.pause();
       }
       
-      // 2) Detener pistas del stream anterior
+      // Limpiar tracks anteriores
       currentRemoteStream.current?.getTracks().forEach(t => t.stop());
       currentRemoteStream.current = inbound;
       
-      // 3) Asignar nuevo srcObject y reanudar reproducción
+      // Asignar y reproducir
       if (videoRef.current) {
         videoRef.current.srcObject = inbound;
         videoRef.current.muted = false;
@@ -284,7 +288,7 @@ export function useWebRTC() {
         });
       }
     }, 500);
-  }, [lastBytesReceived, videoIsPlaying, onVideoStatusChange, detachRemoteVideo]);
+  }, [lastBytesReceived, videoIsPlaying, onVideoStatusChange, detachRemoteVideo, videoRef]);
 
   const onStreamEvent = useCallback((message: MessageEvent) => {
     if (dataChannelRef.current?.readyState === 'open') {
