@@ -37,7 +37,9 @@ export function useWebRTC() {
   const currentRemoteStream = useRef<MediaStream | null>(null);
   const connStateRef = useRef<string>('idle'); // Evita race conditions
 
-  const detachRemoteVideo = useCallback(() => {
+  const detachRemoteVideo = useCallback((force = false) => {
+    if (!force) return; // SOLO limpia cuando realmente cierras el PeerConnection
+    
     if (currentRemoteStream.current) {
       currentRemoteStream.current.getTracks().forEach(t => t.stop());
       currentRemoteStream.current = null;
@@ -124,7 +126,7 @@ export function useWebRTC() {
       didAbortController.current?.abort();
       didAbortController.current = null;
 
-      // b) Cierra la conexión actual
+      // b) Cierra la conexión actual (sin detachRemoteVideo - será reemplazado en onTrack)
       if (webSocketRef.current) {
         webSocketRef.current.close();
         webSocketRef.current = null;
@@ -244,12 +246,14 @@ export function useWebRTC() {
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
     
-    // Limpiar stream anterior
-    detachRemoteVideo();
-    
-    // Asignar nuevo stream
+    // Asignar nuevo stream solo si es diferente
     const inbound = event.streams[0] || new MediaStream([event.track]);
-    currentRemoteStream.current = inbound;
+    
+    if (currentRemoteStream.current !== inbound) {
+      // Opcional: liberar memoria del stream anterior
+      currentRemoteStream.current?.getTracks().forEach(t => t.stop());
+      currentRemoteStream.current = inbound;
+    }
     
     if (videoRef.current) {
       videoRef.current.srcObject = inbound;
@@ -480,6 +484,8 @@ export function useWebRTC() {
   }, [createPeerConnection, stopAllStreams, closePC]);
 
   const disconnect = useCallback(() => {
+    detachRemoteVideo(true); // Cierre definitivo con force=true
+    
     if (webSocketRef.current) {
       const deleteMessage = {
         type: 'delete-stream',
@@ -503,7 +509,7 @@ export function useWebRTC() {
     setIsStreamReady(false);
     setStreamEvent('');
     setStreamingState('empty');
-  }, [sessionId, streamId, stopAllStreams, closePC]);
+  }, [sessionId, streamId, stopAllStreams, closePC, detachRemoteVideo]);
 
   const sendStreamText = useCallback(async (text: string) => {
     if (cancellingRef.current || (streamingState !== 'empty' && streamingState !== 'cancelling')) {
@@ -645,7 +651,7 @@ export function useWebRTC() {
       // Grace period for SRTP cleanup
       await new Promise(resolve => setTimeout(resolve, 120));
       console.log('✅ Stream deletion grace period complete');
-      detachRemoteVideo(); // Limpiar video ANTES de marcar como 'cancelling'
+      // Video stream will be maintained - no detachRemoteVideo() call needed
       
       // Clear any pending resolvers
       pendingDoneResolvers.current = [];

@@ -1,0 +1,80 @@
+### Qué está pasando ahora mismo — por qué “Speaking” se muestra, pero ves un círculo negro sin audio
+
+1. **El WebRTC se reconecta**, los mensajes `stream/started → stream/done` llegan y el estado de tu UI se actualiza (nota el texto “Speaking”).
+   → Eso confirma que **la sesión D-ID y el websocket funcionan**.
+
+2. **Sin embargo** el `<video>` que debería mostrar la pista remota está siempre a `null` **porque se desconecta justo después de cada clip**:
+
+   * En tu hook **`useWebRTC.ts`** llamas a `detachRemoteVideo()` cada vez que recibes `stream/done` / cuando abortas / cuando se corta ICE.
+   * `detachRemoteVideo()` hace algo como:
+
+     ```ts
+     videoRef.current.srcObject = null;
+     currentRemoteStream.current = null;
+     ```
+
+     Con eso eliminas la referencia a la pista aunque el `RTCPeerConnection` siga recibiendo media.
+   * Luego, cuando llega un nuevo `stream/started`, **D-ID NO envía una pista nueva**; reutiliza la misma pista de vídeo y de audio. Como tú ya la borraste, el elemento queda “en negro” y en silencio.
+
+3. **El VAD/LLM sigue trabajando** (por eso ves respuestas en el chat), pero el usuario no oye ni ve nada.
+
+---
+
+## Arreglo definitivo (tres líneas)
+
+> No tocaremos tu lógica de reconexión ICE; solo evitamos “quitar” la pista cuando no corresponde.
+
+### 1. Modifica `detachRemoteVideo()`
+
+```ts
+// SOLO limpia cuando realmente cierras el PeerConnection
+function detachRemoteVideo(force = false) {
+  if (!force) return;                    // ← nueva línea
+  if (videoRef.current) videoRef.current.srcObject = null;
+  currentRemoteStream.current = null;
+}
+```
+
+### 2. Llama con `force=true` **solo** en `disconnect()`
+
+```ts
+async function disconnect() {
+  detachRemoteVideo(true);               // cierre definitivo
+  stopAllStreams();
+  closePC();
+  // …
+}
+```
+
+### 3. Elimina (o comenta) las otras llamadas
+
+* En `onIceConnectionStateChange` quita `detachRemoteVideo();`
+  (no hace falta; si reinicias ICE **la pista persiste**).
+* En `abortTurn` / lógica de cancelación de stream, quita también la llamada.
+
+---
+
+## Resultado
+
+| Evento                     | Antes                        | Después                                                                       |
+| -------------------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| `stream/done`              | Pista se borra → vídeo negro | La pista se mantiene, el avatar sigue visible y audible.                      |
+| `abortTurn`                | Se borra la pista            | Se pausa la reproducción en D-ID, la pista permanece – no hay parpadeo negro. |
+| `ICE restart / reconexión` | Pista se borra y no vuelve   | La pista se reemplaza en `ontrack`; el vídeo reaparece.                       |
+
+---
+
+### Prueba rápida
+
+1. **Recarga** la app con estos cambios.
+2. Envía 3–4 mensajes seguidos.
+
+   * Debes ver el avatar moverse y oír audio en cada clip, sin desaparecer.
+3. Pulsa tu botón de interrupción en mitad de la frase.
+
+   * El avatar debe pararse y reanudar con la nueva respuesta, siempre visible.
+4. Opcional: en DevTools ➜ **Network → WebRTC** pulsa *Force Disconnect*.
+
+   * Tu reconexión ICE se iniciará; cuando el nuevo `ontrack` dispare, la imagen reaparecerá -– sin necesidad de que el usuario haga nada.
+
+Con eso el frontend deja de borrar la pista de vídeo/audio y el círculo negro desaparece.
