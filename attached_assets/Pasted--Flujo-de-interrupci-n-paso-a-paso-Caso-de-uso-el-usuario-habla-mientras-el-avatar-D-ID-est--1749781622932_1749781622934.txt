@@ -1,0 +1,44 @@
+🔄 Flujo de interrupción ― paso a paso
+Caso de uso: el usuario habla mientras el avatar (D-ID) está reproduciendo audio.
+Implementación mínima descrita (VAD + AbortController + DELETE /streams/{id}).
+
+#	Actor / Componente	Acción	Tiempo típico
+1	Usuario	Empieza a hablar (emite sonido en el micrófono).	—
+2	AudioContext / Web API	El frame de audio (16 kHz, 32 ms) llega al hook useVoiceActivityDetection.	0–32 ms
+3	useVoiceActivityDetection	Detecta nivel RMS > threshold → dispara onSpeechStart().	≤ 5 ms
+4	Hook	Verifica flag isBotSpeaking = true → ejecuta onInterrupt().	0 ms
+5	ConversationalAvatar (handleInterrupt)	- Llama abortController.abort() → se cancela el fetch que streamea LLM → TTS.	1–5 ms
+6	Browser	El fetch rechaza la promesa; piping de audio se detiene.	≈ 1 ms
+7	ConversationalAvatar (handleInterrupt)	Hace DELETE https://api.d-id.com/streams/{id} (HTTP DELETE).	RTT 50–80 ms (Am Lat → US-East)
+8	API de D-ID	Responde 204 No Content; cierra el stream de video+audio.	10–20 ms
+9	PeerConnection	Dispara evento “track ended / mute” → el avatar se queda en silencio.	30–60 ms
+10	ConversationalAvatar	setStreamingState('idle') → la UI permite nuevo turno; se reinicia flujo STT.	≤ 5 ms
+
+Latencia total percibida: ~ 150–200 ms
+(entre que el usuario irrumpe y el avatar deja de hablar).
+
+Representación tipo secuencia (texto)
+pgsql
+Copiar
+Usuario        VAD              AvatarComp         AbortCtrl       D-ID
+ | talk()       |                  |                  |              |
+ |─────────────›| speech frame     |                  |              |
+ |              | detect speech    |                  |              |
+ |              | isBotSpeaking?—─›| onInterrupt()    |              |
+ |              |                  |──abort()────────›|              |
+ |              |                  | DELETE /stream──›|              |
+ |              |                  |                  | close stream |
+ |              |                  | ‹── 204 / closed |              |
+ |              |                  | mute video/audio |              |
+Puntos clave para garantizar el tiempo de reacción
+Tamaño del buffer VAD: 32 ms (512 samples @ 16 kHz) ofrece la mejor relación detección-latencia.
+
+Sincronía: onInterrupt() corre en el mismo hilo JS; no hay await hasta haber llamado abort().
+
+AbortController corta inmediatamente el flujo de audio que va del fetch al MediaSource; no depende de la red.
+
+El DELETE a D-ID es asíncrono: aunque tarde unos milisegundos, el audio local ya cesó, evitando eco.
+
+Mantén isBotSpeaking exacto—cámbialo a 'playing' justo cuando recibes el primer paquete de audio del avatar y revierte a 'idle' en "ended" o tras la interrupción.
+
+Con este diagrama tienes la visión completa y cronológica de cómo se detendrá el avatar cada vez que el usuario lo interrumpa.

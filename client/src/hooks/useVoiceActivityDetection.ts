@@ -4,9 +4,11 @@ import { CONFIG } from '@/lib/config';
 interface UseVADProps {
   onSpeechEnd: (audioBlob: Blob) => void;
   onSpeechStart?: () => void;
+  isBotSpeaking?: boolean;
+  onInterrupt?: () => void;
 }
 
-export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVADProps) {
+export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isBotSpeaking, onInterrupt }: UseVADProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -33,6 +35,14 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     if (isSpeaking && !isSpeakingRef.current) {
       // Speech started
       isSpeakingRef.current = true;
+      
+      // INTERRUPT DETECTION: If bot is speaking, trigger interrupt but continue recording
+      if (isBotSpeaking && onInterrupt) {
+        console.log('🚨 User interrupt detected while bot speaking');
+        onInterrupt();
+        // Continue with normal flow to capture the user's interrupting speech
+      }
+      
       onSpeechStart?.();
       
       // Clear any existing silence timeout
@@ -70,7 +80,7 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart }: UseVAD
     if (isActiveRef.current) {
       requestAnimationFrame(detectVoiceActivity);
     }
-  }, [onSpeechEnd, onSpeechStart]);
+  }, [onSpeechEnd, onSpeechStart, isBotSpeaking, onInterrupt]);
 
   const startVAD = useCallback(async () => {
     try {

@@ -1,0 +1,57 @@
+Flujo completo con corte + reinicio
+(“loop” resaltado en color)
+
+Paso	Actor / Componente	Acción	Observación
+0	UI / Usuario	Hace clic o dice “hola” → comienza turno	streamingState = 'empty'
+1	STT	Se envían chunks a Whisper → texto parcial	
+2	LLM + TTS	Sale respuesta; se abre nuevo streamId en D-ID	streamingState = 'streaming' → isBotSpeaking = true
+3	Usuario	Interrumpe hablando encima	
+4	VAD	Detecta voz  ➜ onInterrupt()	
+5	handleInterrupt	abort() + DELETE /streams/{id}	corta audio local + remoto
+6	WebRTC	Track ended ➜ streamingState = 'empty'	Loop vuelve al paso 0
+7	STT	Sigue activo → ya está recibiendo la voz que detonó la interrupción	nueva transcripción inicia otra iteración
+
+🔸 Dónde se reinicia el ciclo
+
+La clave es streamingState = 'empty' que se setea dentro de handleInterrupt (paso 6).
+
+Esa asignación provoca que tu componente de conversación (o el hook que gobierna el turno) reconozca que el bot ya no está hablando y vuelva a modo “listen”.
+
+Como Whisper nunca dejó de recibir audio (solo se abortó el fetch del TTS/LLM), la frase del usuario que originó la interrupción ya está encola­da; el backend reinicia desde el paso 1 automáticamente.
+
+Secuencia ASCII (con loop)
+sql
+Copiar
+Usuario           VAD            AvatarComp        STT/LLM/TTS       D-ID
+  |  habla           |                |                 |              |
+  |------------------>| frame          |                 |              |
+  |  (interrupción)   | RMS>thr        |                 |              |
+  |                   | isBot=TRUE     |                 |              |
+  |                   |----INT------->>| abort()         |              |
+  |                   |                |----X----------->|              |
+  |                   |                | DELETE stream-->|              |
+  |                   |                |                 |<-204 / close |
+  |                   |                | track ended --->|(WebRTC)      |
+  |                   |                | setState(empty) |              |
+  |<------------------|  **STT ya sigue escuchando**     |              |
+  |  termina frase    |                |                 |              |
+  |------------------>| texto parcial  |                 |              |
+  |                   |                |--- nueva ronda STT→LLM→TTS→D-ID
+Puntos de código donde ocurre el reinicio
+handleInterrupt()
+
+ts
+Copiar
+setStreamingState('empty');        // ← gatilla el loop
+Hook / efecto que dispara STT+LLM
+
+ts
+Copiar
+useEffect(() => {
+  if (streamingState === 'empty' && partialText) {
+    // Ya hay texto nuevo → llama again fetchLLM()
+  }
+}, [streamingState, partialText]);
+Whisper no se pausa – El micrófono y la VAD permanecen activos, por eso la conversación reanuda sin pedir permisos de nuevo.
+
+Con este ajuste queda explícito dónde y cómo el pipeline vuelve a empezar después de cada interrupción.

@@ -20,7 +20,7 @@ export async function connectToGroqSTT(model: string = 'whisper-large-v3'): Prom
   });
 }
 
-export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile') {
+export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile', signal?: AbortSignal) {
   try {
     if (!GROQ_API_KEY) {
       throw new Error('GROQ API key not configured');

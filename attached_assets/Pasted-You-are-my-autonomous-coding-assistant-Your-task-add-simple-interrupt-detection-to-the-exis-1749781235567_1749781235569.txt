@@ -1,0 +1,69 @@
+You are my autonomous coding assistant.  
+Your task: **add simple “interrupt” detection to the existing voice-chat repo** so that, if the user starts talking while the avatar (D-ID stream) is speaking, the current LLM/TTS stream is aborted immediately.
+
+### 1 — Study the current code base  
+Key files already in the repo:
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useVoiceActivityDetection.ts` | Emits `onSpeechStart / onSpeechEnd` based on mic audio. |
+| `src/hooks/useWebRTC.ts` | Opens / closes the D-ID WebRTC stream; keeps `streamingState` and returns `currentStreamIdRef` + `token`. |
+| `src/components/ConversationalAvatar.tsx` | Renders the avatar video and controls playback. |
+| `src/hooks/useLLM.ts` (or `useLLM.tsx`) | Sends the text to the back end and receives audio stream; currently uses `fetch()` without an AbortController. |
+
+### 2 — What you must build
+1. **Flag that tells us when the bot is speaking**  
+   In `ConversationalAvatar.tsx`, derive  
+   ```ts
+   const isBotSpeaking = streamingState === 'playing';
+and pass it down to the VAD hook.
+
+Extend the VAD hook (useVoiceActivityDetection.ts):
+
+Add two new props:
+
+ts
+Copiar
+isBotSpeaking: boolean;
+onInterrupt: () => void;
+Inside the internal speechStart handler, call onInterrupt() only if isBotSpeaking === true.
+
+Implement the interrupt handler in ConversationalAvatar.tsx:
+
+ts
+Copiar
+const handleInterrupt = () => {
+  // 1. Abort the ongoing fetch to LLM/TTS
+  abortControllerRef.current?.abort?.();
+
+  // 2. Stop the current D-ID stream
+  if (currentStreamIdRef.current) {
+    fetch(`https://api.d-id.com/streams/${currentStreamIdRef.current}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(console.error);
+  }
+
+  // 3. Reset UI
+  setStreamingState('idle');
+};
+Pass handleInterrupt to the VAD hook.
+
+Wire an AbortController around the existing fetch that starts the LLM→TTS pipeline (in useLLM or wherever that request lives).
+Store it in abortControllerRef so the interrupt handler can call abort().
+
+3 — Acceptance criteria
+Talking over the bot stops audio within ≤ 200 ms (tested locally).
+
+No additional packages or backend endpoints added.
+
+All TypeScript passes pnpm test / npm run typecheck.
+
+No eslint errors introduced.
+
+4 — Output required
+The full diff (git patch) for the changed files.
+
+A short README section (“Interrupt flow”) describing how it works and how to tweak thresholds.
+
+Focus on the minimal viable change-set; do not introduce extra complexity such as ML models or separate micro-services.
