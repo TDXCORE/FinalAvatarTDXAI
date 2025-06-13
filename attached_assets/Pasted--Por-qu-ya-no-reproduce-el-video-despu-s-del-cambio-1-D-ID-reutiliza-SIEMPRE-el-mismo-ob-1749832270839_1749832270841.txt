@@ -1,0 +1,69 @@
+### Por qué “ya no reproduce el video” después del cambio
+
+1. **D-ID reutiliza SIEMPRE el mismo objeto `MediaStream`** entre clips normales.
+   Cuando envías un nuevo texto (sin interrupción) **no se dispara ningún `ontrack`**: la pista original sigue viva.
+2. Tu nueva lógica **pone el `<video>` en pausa** dentro de `onTrack`, pero **solo lo reanuda cuando llega otro `ontrack`**.
+
+   * Primer clip → `ontrack` corre, pausa + play ⇒ OK.
+   * Segundo clip (sin interrupt) → no hay `ontrack`, el vídeo **queda en pausa** ⇒ pantalla negra.
+3. Por eso antes funcionaba (nunca pausabas) y ahora no.
+
+---
+
+## Corrección mínima que no rompe nada
+
+1. **No pauses el vídeo en `onTrack`.**
+   Necesitas limpiar la pista sobrante, pero sin tocar `pause()`:
+
+   ```ts
+   const onTrack = useCallback((e: RTCTrackEvent) => {
+     if (e.track.kind !== 'video') return;
+     const inbound = e.streams[0] || new MediaStream([e.track]);
+
+     // ⚡ Elimina cualquier otra video-track del MISMO stream
+     inbound.getVideoTracks().forEach(t => {
+       if (t.id !== e.track.id) {
+         t.stop();
+         inbound.removeTrack(t);
+       }
+     });
+
+     // Asigna el stream una sola vez
+     if (videoRef.current?.srcObject !== inbound) {
+       videoRef.current!.srcObject = inbound;
+     }
+
+     // Asegura reproducción (por si estaba en pausa)
+     setTimeout(() => videoRef.current?.play().catch(() => {}), 20);
+
+     currentRemoteStream.current = inbound;
+   }, [videoRef]);
+   ```
+
+2. **Quita la llamada a `videoRef.current.pause()`** y el bloque que detiene todos los tracks en tu versión actual de `onTrack`.
+   Con eso:
+
+   * Cuando hay **interrupción**, llega un `ontrack`, se filtran las pistas sobrantes, no se pausa el elemento, el nuevo clip arranca sin solaparse.
+   * Cuando hay **clip normal** (sin nuevo `ontrack`), el vídeo nunca se pone en pausa, así que se sigue viendo.
+
+3. **Mantén `detachRemoteVideo(true)` solo en `disconnect()`.**
+   No vuelvas a llamarlo en interrupciones; dejas que la pista viva y simplemente filtras.
+
+---
+
+### Ventajas del ajuste
+
+| Resultado                              | Explicación                                                                                                     |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Sin overlapping**                    | Se elimina la pista vieja antes de que empiece el nuevo clip.                                                   |
+| **Sin pantalla negra**                 | Nunca pausas el `<video>` en flujos normales y, si lo hubieras pausado, `play()` se fuerza en `stream/started`. |
+| **Sin estados extra / sin romper ICE** | Cambias solo `onTrack`; todo lo demás (VAD, reconexión, UI) sigue igual.                                        |
+
+---
+
+**Implementa este filtro de pistas y elimina la línea `videoRef.current.pause()`.**
+Luego prueba:
+
+1. Enviar varios mensajes seguidos (sin interrupción) → video se reproduce siempre.
+2. Interrumpir a mitad de frase → el clip se corta y el nuevo aparece sin solaparse.
+3. Ver en `chrome://media-internals` que hay solo **una** video-track activa.

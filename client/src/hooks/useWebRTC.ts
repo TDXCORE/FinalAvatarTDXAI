@@ -245,31 +245,32 @@ export function useWebRTC() {
 
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
-    
+    if (event.track.kind !== 'video') return; // Solo procesar video tracks
+
     const inbound = event.streams[0] || new MediaStream([event.track]);
-    
-    // Detectar si es un track diferente (más confiable que comparar streams)
-    const currentTrackId = currentRemoteStream.current?.getVideoTracks()[0]?.id;
-    const newTrackId = event.track.id;
-    const isNewTrack = currentTrackId !== newTrackId;
-    
-    if (isNewTrack || streamingStateRef.current === 'cancelling') {
-      // Pausar siempre durante cambios o después de cancelaciones
-      if (videoRef.current) {
-        videoRef.current.pause();
+
+    // 1️⃣ Eliminar cualquier video-track previa del MISMO stream
+    inbound.getVideoTracks().forEach(track => {
+      if (track.id !== event.track.id) {     // Pista vieja detectada
+        track.stop();                        // Detener decodificación
+        inbound.removeTrack(track);          // Sacar del stream
       }
-      
-      // Limpiar tracks anteriores
-      currentRemoteStream.current?.getTracks().forEach(t => t.stop());
-      currentRemoteStream.current = inbound;
-      
-      // Asignar y reproducir
+    });
+
+    // 2️⃣ Asignar el stream (solo si aún no está)
+    if (videoRef.current?.srcObject !== inbound) {
       if (videoRef.current) {
         videoRef.current.srcObject = inbound;
         videoRef.current.muted = false;
-        videoRef.current.play().catch(() => {});
       }
     }
+
+    // 3️⃣ Asegurar reproducción (por si algún flujo previo lo pausó)
+    setTimeout(() => {
+      videoRef.current?.play().catch(() => {});
+    }, 20);
+
+    currentRemoteStream.current = inbound;
 
     statsIntervalRef.current = setInterval(async () => {
       if (peerConnectionRef.current) {

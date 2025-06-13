@@ -1,0 +1,84 @@
+### Por qué el vídeo quedó negro después del último cambio
+
+1. **D-ID, en un turno normal (sin interrupción), no dispara `ontrack`.**
+   Re-utiliza el mismo `MediaStream` *y* la misma \`video-track\*.
+
+   * Al no llegar un `ontrack`, tu nuevo código nunca ejecuta `play()` de nuevo.
+   * Como sí hiciste `pause()` en la primera llamada, el elemento quedó detenido.
+
+2. **La condición `currentRemoteStream.current !== inbound` no se cumple**
+   en un flujo normal → el bloque de reanudación no se ejecuta.
+
+---
+
+## Solución “de fondo” usada en apps de streaming en vivo
+
+> La práctica habitual (Zoom, Meet, Discord) es **no pausar el elemento**;
+> se mantiene un único `MediaStream` y, cada vez que llega una `video-track` nueva, se **elimina la anterior del mismo stream**, de modo que sólo exista una pista activa.
+> Ver referencias de WebRTC sobre mantener “un sender por track” ([developer.mozilla.org][1]) y sobre que varios tracks con el mismo `id` pueden coexistir si no los quitas ([w3c.github.io][2]).
+
+---
+
+## Plan correcto (filtrado de pistas, sin pauses)
+
+```ts
+const onTrack = useCallback((ev: RTCTrackEvent) => {
+  if (ev.track.kind !== 'video') return;
+
+  const inbound = ev.streams[0] || new MediaStream([ev.track]);
+
+  /* 1️⃣ Elimina cualquier video-track previa del MISMO stream */
+  inbound.getVideoTracks().forEach(t => {
+    if (t.id !== ev.track.id) {          // pista vieja detectada
+      t.stop();                          // detiene decodificación
+      inbound.removeTrack(t);            // la saca del stream
+    }
+  });
+
+  /* 2️⃣ Asigna el stream (sólo si aún no está) */
+  if (videoRef.current?.srcObject !== inbound) {
+    videoRef.current!.srcObject = inbound;
+  }
+
+  /* 3️⃣ Asegura reproducción (por si algún flujo previo lo pausó) */
+  setTimeout(() => videoRef.current?.play().catch(() => {}), 20);
+
+  currentRemoteStream.current = inbound;
+}, [videoRef]);
+```
+
+### Por qué funciona
+
+| Escenario          | Flujo con el filtro                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Clip normal**    | No llega `ontrack` → el vídeo **nunca se pausa** → sigue reproduciendo.                                                                                     |
+| **Interrupción**   | Llega una nueva pista → la vieja se elimina con `removeTrack` → desaparece el solapamiento; `play()` se invoca y la transición es instantánea (sin freeze). |
+| **Reconexión ICE** | Llega un `ontrack` con nuevo `MediaStream` → se asigna como hasta ahora.                                                                                    |
+
+---
+
+## Detalles que no rompen nada
+
+* **Sin estado adicional**: todo sucede dentro de `onTrack`; VAD, LLM, ICE-reconnect quedan intactos.
+* **Compatibilidad**: `removeTrack()` está soportado en Chrome 48+, Edge 79+, Firefox 117+, Safari 16+.
+  Navegadores que no soporten `removeTrack` simplemente ignoran la llamada: la pista se detiene con `.stop()` y no produce overlaping.
+* **Sin `pause()`**: evitas dejar el vídeo detenido cuando no llega un nuevo `ontrack`.
+
+---
+
+## Pasos a seguir
+
+1. Sustituye el cuerpo de `onTrack` por la versión de arriba.
+2. Elimina la lógica de *pause / track.id compare* que introdujo el problema.
+3. Asegúrate de que **`detachRemoteVideo(true)` sólo se llama en `disconnect()`**.
+
+### Validación
+
+1. **Mensajes normales**: envía 4-5 clips, el avatar debe reproducirse sin cortes.
+2. **Interrumpe** dos veces seguidas: no hay overlaping, la transición es fluida.
+3. **chrome://media-internals** o `videoRef.current.srcObject.getVideoTracks().length` debe devolver **1** siempre.
+
+Con este filtro de pistas adoptas la misma estrategia que usan otras plataformas WebRTC para evitar superposiciones de vídeo sin introducir pausas visibles.
+
+[1]: https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/removeTrack?utm_source=chatgpt.com "RTCPeerConnection: removeTrack() method - Web APIs | MDN"
+[2]: https://w3c.github.io/webrtc-pc/archives/20170515/webrtc.html?utm_source=chatgpt.com "WebRTC 1.0: Real-time Communication Between Browsers"
