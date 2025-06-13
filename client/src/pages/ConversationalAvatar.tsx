@@ -37,7 +37,8 @@ export default function ConversationalAvatar() {
     videoRef,
     idleVideoRef,
     currentStreamId,
-    cancellingRef
+    cancellingRef,
+    streamingStateRef
   } = useWebRTC();
 
   const {
@@ -69,7 +70,7 @@ export default function ConversationalAvatar() {
 
   // Interrupt handler
   const handleInterrupt = useCallback(async () => {
-    if (streamingState !== 'streaming' || cancellingRef.current) return;
+    if (streamingStateRef.current !== 'streaming' || cancellingRef.current) return;
     
     console.log('🚨 Handling user interrupt');
     
@@ -84,7 +85,7 @@ export default function ConversationalAvatar() {
     setLatencyStart(null);
     
     // Note: Removed confusing system message for cleaner UX
-  }, [abortCurrentRequest, cancelCurrentStream, streamingState, cancellingRef]);
+  }, [abortCurrentRequest, cancelCurrentStream, streamingStateRef, cancellingRef]);
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({

@@ -13,8 +13,15 @@ export function useWebRTC() {
   const [iceConnectionState, setIceConnectionState] = useState('');
   const [iceGatheringState, setIceGatheringState] = useState('');
   const [signalingState, setSignalingState] = useState('');
-  const [streamingState, setStreamingState] = useState('empty');
+  const [streamingState, _setStreamingState] = useState<'empty'|'streaming'|'cancelling'>('empty');
+  const streamingStateRef = useRef<'empty'|'streaming'|'cancelling'>('empty');
   const cancellingRef = useRef(false);
+
+  // Synchronous setter that updates ref immediately and state asynchronously
+  const setStreamingState = useCallback((next: 'empty'|'streaming'|'cancelling') => {
+    streamingStateRef.current = next;   // ref updated synchronously
+    _setStreamingState(next);           // React state (async)
+  }, []);
   const [streamEvent, setStreamEvent] = useState('');
   const [isStreamReady, setIsStreamReady] = useState(false);
   const [streamId, setStreamId] = useState<string | null>(null);
@@ -90,7 +97,7 @@ export function useWebRTC() {
   }, []);
 
   const onVideoStatusChange = useCallback((videoIsPlaying: boolean, stream?: MediaStream) => {
-    let status = videoIsPlaying ? 'streaming' : 'empty';
+    let status: 'empty' | 'streaming' = videoIsPlaying ? 'streaming' : 'empty';
     
     if (videoIsPlaying && stream && videoRef.current) {
       const video = videoRef.current;
@@ -132,7 +139,7 @@ export function useWebRTC() {
       }
     }
 
-    setStreamingState(status);
+    setStreamingState(status as 'empty' | 'streaming');
   }, []);
 
   const onTrack = useCallback((event: RTCTrackEvent) => {
@@ -399,14 +406,6 @@ export function useWebRTC() {
 
   // Array to store pending stream completion resolvers
   const pendingDoneResolvers = useRef<(() => void)[]>([]);
-  
-  // Ref to track current streaming state for immediate access
-  const streamingStateRef = useRef(streamingState);
-  
-  // Update ref whenever state changes
-  useEffect(() => {
-    streamingStateRef.current = streamingState;
-  }, [streamingState]);
 
   // Wait for real stream/done event - simplified and robust
   const waitForRealDone = useCallback((): Promise<void> => {
@@ -423,7 +422,7 @@ export function useWebRTC() {
 
   const cancelCurrentStream = useCallback(async (): Promise<void> => {
     if (!webSocketRef.current || !streamId || !sessionId || 
-        cancellingRef.current || streamingState !== 'streaming') {
+        cancellingRef.current || streamingStateRef.current !== 'streaming') {
       console.log('[cancel] No hay stream activo; omite.');
       return;
     }
@@ -486,6 +485,7 @@ export function useWebRTC() {
     videoRef,
     idleVideoRef,
     currentStreamId: streamId,
-    cancellingRef
+    cancellingRef,
+    streamingStateRef
   };
 }

@@ -1,0 +1,85 @@
+Diagnóstico confirmado
+streamingState (state React) llega tarde a cancelCurrentStream().
+Cuando la interrupción entra, el flag (“bot talking”) aún es true, pero en el micro-tick siguiente React ya programó un nuevo render y el valor dentro del closure cambió.
+Resultado: la cláusula
+
+ts
+Copiar
+if (streamingState !== 'streaming') return;
+se evalúa con el estado viejo y la cancelación se salta.
+
+🔧 Corrección: usa un ref inmutable al tick de JS
+Crea un ref que siempre contenga el valor actual —sin esperar render.
+
+Actualízalo cada vez que cambie el estado (o directamente dentro del handler de eventos).
+
+Consulta el ref (no el state) en cancelCurrentStream() y en cualquier guard que dependa de “bot hablando”.
+
+1. Parchado de useWebRTC.ts
+diff
+Copiar
+@@
+-const [streamingState, setStreamingState] =
+-  useState<'empty'|'streaming'|'cancelling'>('empty');
++const [streamingState, _setStreamingState] =
++  useState<'empty'|'streaming'|'cancelling'>('empty');
++const streamingStateRef = useRef<'empty'|'streaming'|'cancelling'>('empty');
+
++function setStreamingState(next: 'empty'|'streaming'|'cancelling') {
++  streamingStateRef.current = next;   // 👈 ref actualizado SINcrono
++  _setStreamingState(next);           // estado React (async)
++}
+
+@@  // onStreamEvent
+   switch (event) {
+     case 'stream/started':
+-      setStreamingState('streaming');
++      setStreamingState('streaming');  // actualiza ref + state
+       break;
+     case 'stream/done':
+-      setStreamingState('empty');
++      setStreamingState('empty');
+       /* …libera promesas… */
+       break;
+2. Usa el ref en las verificaciones críticas
+diff
+Copiar
+- if (!currentStreamIdRef.current
+-     || cancellingRef.current
+-     || streamingState !== 'streaming') {
++ if (!currentStreamIdRef.current
++     || cancellingRef.current
++     || streamingStateRef.current !== 'streaming') {
+       console.log('[cancel] No hay stream activo; omite.');
+       return;
+ }
+Y en handleInterrupt (o el VAD hook):
+
+ts
+Copiar
+if (streamingStateRef.current !== 'streaming' || cancellingRef.current) return;
+3. Opcional: helper useLatest<T>(value)
+Si prefieres un patrón reutilizable:
+
+ts
+Copiar
+function useLatest<T>(val: T) {
+  const ref = useRef(val);
+  ref.current = val;
+  return ref;
+}
+ts
+Copiar
+const streamingStateRef = useLatest(streamingState);
+Pero en este caso ya estamos envolviendo el setter, que es incluso más seguro.
+
+🚀 Resultado esperado
+Interrupción → cancelCurrentStream() consulta streamingStateRef.current === 'streaming' → entra correctamente.
+
+Tracks remotos se stop(), peerConnection.close() y <video> se limpia inmediatamente.
+
+No vuelves a ver [cancel] No hay stream activo; omite. cuando el avatar realmente está hablando.
+
+Las interrupciones sobre streams ya terminados siguen ignorándose (porque el ref dirá 'empty').
+
+Con el ref eliminamos la carrera entre el ciclo de vida React y el flujo WebRTC, consiguiendo una sincronización precisa sin depender de timeouts.
