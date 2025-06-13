@@ -8,6 +8,8 @@ export function useWebRTC() {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const webSocketRef = useRef<WebSocket | null>(null);
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingMessagesRef = useRef<string[]>([]);
+  const pendingDoneResolvers = useRef<(() => void)[]>([]);
   
   const [connectionState, setConnectionState] = useState('');
   const [iceConnectionState, setIceConnectionState] = useState('');
@@ -405,8 +407,7 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
-  // Array to store pending stream completion resolvers
-  const pendingDoneResolvers = useRef<(() => void)[]>([]);
+
 
   // Wait for real stream/done event - always wait for D-ID confirmation
   const waitForRealDone = useCallback((timeout = 2000): Promise<void> => {
