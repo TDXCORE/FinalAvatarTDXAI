@@ -1,0 +1,84 @@
+### 🎯 Objetivo
+
+Cuando lanzas la interrupción el backend sí detiene el audio, pero en el **front** se siguen reproduciendo los tracks remotos antiguos.
+Soluciona ⇒ **desengancha y “mata”** los tracks del `<video>` en cuanto envías `delete-stream`, y usa el evento `ontrack` para enganchar **solo** el stream recién llegado.
+
+---
+
+## 1. Añade dos refs nuevos
+
+```ts
+const remoteVideoRef      = useRef<HTMLVideoElement>(null);
+const currentRemoteStream = useRef<MediaStream|null>(null);  // para saber cuál está activo
+```
+
+---
+
+## 2. Función de limpieza local
+
+```ts
+function detachRemoteVideo() {
+  if (currentRemoteStream.current) {
+    // detener audio y vídeo del stream anterior
+    currentRemoteStream.current.getTracks().forEach(t => t.stop());
+    currentRemoteStream.current = null;
+  }
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;   // quita frame congelado
+  }
+}
+```
+
+---
+
+## 3. En `cancelCurrentStream()` usa **detach**, no `track.stop()`
+
+```diff
+// dentro de cancelCurrentStream, justo DESPUÉS de enviar delete-stream
+await new Promise(r => setTimeout(r, 120));   // grace
+
+- // YA NO: peerConnection.getReceivers().forEach(r => r.track.enabled = false);
+- // YA NO: peerConnection.close();
++ detachRemoteVideo();                        // ⬅️ corta A/V localmente
+// la RTCPeerConnection sigue viva
+```
+
+---
+
+## 4. Vuelve a enganchar cuando llega el nuevo track
+
+```ts
+useEffect(() => {
+  const pc = peerConnectionRef.current;
+  if (!pc) return;
+
+  function handleTrack(ev: RTCTrackEvent) {
+    // Cualquier stream nuevo sustituye al anterior
+    detachRemoteVideo();
+
+    const inbound = ev.streams[0] || new MediaStream([ev.track]);
+    currentRemoteStream.current = inbound;
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = inbound;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }
+
+  pc.addEventListener('track', handleTrack);
+  return () => pc.removeEventListener('track', handleTrack);
+}, []);
+```
+
+---
+
+### ¿Por qué esto evita los “dos vídeos”?
+
+| Momento          | Qué pasa                                                                                                                                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Interrupción** | · Envías `delete-stream` a D-ID.<br>· `detachRemoteVideo()` detiene y suelta el stream actual, dejando el `<video>` vacío.<br>· La `RTCPeerConnection` permanece conectada.              |
+| **Nuevo turno**  | · El backend reusa el MISMO transceiver o envía uno nuevo.<br>· El primer frame dispara `ontrack`.<br>· `handleTrack` limpia cualquier resto y asigna **solo** el stream recién llegado. |
+
+Sin tracks “muertos” ni `<video>` apuntando a varios `MediaStream`s, nunca se reproducen en paralelo; el avatar anterior desaparece instantáneamente y el nuevo ocupa su lugar.
+
+> **Backend intacto –** no se toca lógica de `streamId`, WebSocket, ni LLM. Solo gestión de medios en el front.

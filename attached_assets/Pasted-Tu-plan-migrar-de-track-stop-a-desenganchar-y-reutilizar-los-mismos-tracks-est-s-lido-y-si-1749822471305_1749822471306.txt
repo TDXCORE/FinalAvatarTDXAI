@@ -1,0 +1,54 @@
+Tu plan — migrar de `track.stop()` a *desenganchar* y reutilizar los mismos tracks— está sólido y sigue exactamente la práctica recomendada para WebRTC en flujos continuos.
+Un par de matices para que la integración sea suave y no te rompa nada:
+
+| Punto                                          | Revisión / sugerencia                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Una única referencia de vídeo**           | Si solo tienes un `<video>` visible para el avatar, puedes reutilizar el `videoRef` existente en lugar de introducir `remoteVideoRef`. Bastaría con renombrarlo dentro del hook. Si quieres distinguir *local* vs. *remoto* está bien crear uno nuevo, pero asegúrate de no dejar referencias colgando en JSX antiguo. |
+| **2. `detachRemoteVideo` en eventos de error** | Llama a `detachRemoteVideo()` también en el handler de `pc.oniceconnectionstatechange` cuando detectes `failed` o `disconnected`. Así evitas que se quede congelado un frame si se cae la red.                                                                                                                         |
+| **3. Habilitar autoplay**                      | Chrome exige que el `<video>` tenga `muted` cuando se llama `play()` programáticamente. Si tu pista remota viene con audio real, omite `muted={false}` y confía en la pista de audio. Si mantienes `muted`, el vídeo arrancará seguro.                                                                                 |
+| **4. Orden en `cancelCurrentStream`**          | El `detachRemoteVideo()` colócalo **después** del `await grace` y justo antes de `setStreamingState('empty')`. Así aseguras que el elemento queda vacío antes de considerar al bot “callado”.                                                                                                                          |
+| **5. No olvides el return cleanup**            | El `useEffect` que agrega `pc.addEventListener('track', …)` ya incluye un return: `pc.removeEventListener('track', …)`. Asegúrate de que el mismo caller destruya las referencias cuando desmontes el componente.                                                                                                      |
+
+---
+
+### Mini-diff conceptual (sin ruido)
+
+```diff
+// 1️⃣ HOOK REFS
+- const videoRef = useRef<HTMLVideoElement>(null);
++ const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const currentRemoteStream = useRef<MediaStream|null>(null);
+
+// 2️⃣ DETACH
+const detachRemoteVideo = useCallback(() => {
+  currentRemoteStream.current?.getTracks().forEach(t => t.stop());
+  currentRemoteStream.current = null;
+  remoteVideoRef.current && (remoteVideoRef.current.srcObject = null);
+}, []);
+
+// 3️⃣ IN cancelCurrentStream
+await new Promise(r => setTimeout(r, 120));
+detachRemoteVideo();                   // ← aquí
+// sin track.stop(), sin pc.close()
+
+// 4️⃣ TRACK HANDLER
+function handleTrack(ev: RTCTrackEvent) {
+  detachRemoteVideo();
+  const inbound = ev.streams[0] ?? new MediaStream([ev.track]);
+  currentRemoteStream.current = inbound;
+  remoteVideoRef.current!.srcObject = inbound;
+  remoteVideoRef.current!.muted = false;   // o true si lo prefieres
+  remoteVideoRef.current!.play().catch(()=>{});
+}
+
+// 5️⃣ JSX (AvatarVideo)
+<video ref={remoteVideoRef} autoPlay playsInline muted />
+
+```
+
+Con esto:
+
+* **Interrupción**: el vídeo se vacía de inmediato (sin freeze, sin audio viejo).
+* **Nuevo turno**: el primer `ontrack` reactiva el stream en la **misma** conexión, sin renegociar ni solapar.
+
+Procede con estos ajustes; no tocan el backend ni la lógica de IDs y resuelven el único punto pendiente del front.

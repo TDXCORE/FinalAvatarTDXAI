@@ -31,6 +31,19 @@ export function useWebRTC() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [lastBytesReceived, setLastBytesReceived] = useState(0);
   const [videoIsPlaying, setVideoIsPlaying] = useState(false);
+  
+  // Remote video stream management
+  const currentRemoteStream = useRef<MediaStream | null>(null);
+
+  const detachRemoteVideo = useCallback(() => {
+    if (currentRemoteStream.current) {
+      currentRemoteStream.current.getTracks().forEach(t => t.stop());
+      currentRemoteStream.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
 
   const onIceGatheringStateChange = useCallback(() => {
     if (peerConnectionRef.current) {
@@ -68,14 +81,16 @@ export function useWebRTC() {
       const state = peerConnectionRef.current.iceConnectionState;
       setIceConnectionState(state);
       if (state === 'failed' || state === 'closed') {
+        detachRemoteVideo();
         stopAllStreams();
         closePC();
       } else if (state === 'disconnected') {
+        detachRemoteVideo();
         console.log('🔄 ICE disconnected, marking for reconnection');
         setConnectionState('needs-reconnect');
       }
     }
-  }, []);
+  }, [detachRemoteVideo]);
 
   const onConnectionStateChange = useCallback(() => {
     if (peerConnectionRef.current) {
@@ -150,6 +165,19 @@ export function useWebRTC() {
 
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
+    
+    // Limpiar stream anterior
+    detachRemoteVideo();
+    
+    // Asignar nuevo stream
+    const inbound = event.streams[0] || new MediaStream([event.track]);
+    currentRemoteStream.current = inbound;
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = inbound;
+      videoRef.current.muted = false;
+      videoRef.current.play().catch(() => {});
+    }
 
     statsIntervalRef.current = setInterval(async () => {
       if (peerConnectionRef.current) {
@@ -240,7 +268,7 @@ export function useWebRTC() {
         setStreamEvent(status === 'dont-care' ? event : status);
       }
     }
-  }, []);
+  }, [detachRemoteVideo]);
 
   const createPeerConnection = useCallback(async (offer: RTCSessionDescriptionInit, iceServers: RTCIceServer[]) => {
     if (!peerConnectionRef.current) {
