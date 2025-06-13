@@ -485,12 +485,24 @@ export function useWebRTC() {
         await waitForRealDone();
         console.log('✅ Stream cancellation confirmed');
       } catch (error) {
-        console.warn('❌ Stream cancellation timeout - forcing state reset');
-        // Force reset the streaming state to allow new streams
+        console.warn('❌ Stream cancellation timeout - reconnecting to D-ID');
+        // Force reset the streaming state 
         setStreamingState('empty');
-        setStreamEvent('force-reset');
+        setStreamEvent('reconnecting');
         // Clear any pending resolvers
         pendingDoneResolvers.current = [];
+        
+        // Close and reconnect WebSocket to clear D-ID session state
+        if (webSocketRef.current) {
+          webSocketRef.current.close();
+          webSocketRef.current = null;
+        }
+        
+        // Mark for reconnection - the parent component will handle this
+        setTimeout(() => {
+          setStreamEvent('needs-reconnect');
+          console.log('🔄 Marked for D-ID reconnection after timeout');
+        }, 500);
       }
     } catch (error) {
       console.error('Error during stream cancellation:', error);

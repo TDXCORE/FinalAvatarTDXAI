@@ -272,6 +272,14 @@ export default function ConversationalAvatar() {
     }
   }, [streamEvent, latencyStart]);
 
+  // Handle automatic reconnection when needed
+  useEffect(() => {
+    if (streamEvent === 'needs-reconnect' && apiConfig && !isConnected) {
+      console.log('🔄 Auto-reconnecting to D-ID after timeout...');
+      connectWebRTC(apiConfig);
+    }
+  }, [streamEvent, apiConfig, isConnected, connectWebRTC]);
+
   return (
     <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">
       {/* Header - Fixed at top */}
