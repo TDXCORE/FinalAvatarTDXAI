@@ -292,8 +292,11 @@ export function useWebRTC() {
     }
 
     // 3️⃣ Asegurar reproducción (por si algún flujo previo lo pausó)
+    // Solo reanudar si NO estamos en proceso de cancelación
     setTimeout(() => {
-      videoRef.current?.play().catch(() => {});
+      if (streamingStateRef.current !== 'cancelling') {
+        videoRef.current?.play().catch(() => {});
+      }
     }, 20);
 
     currentRemoteStream.current = inbound;

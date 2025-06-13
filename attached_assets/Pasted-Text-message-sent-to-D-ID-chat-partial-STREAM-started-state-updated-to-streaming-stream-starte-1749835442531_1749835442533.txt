@@ -1,0 +1,126 @@
+Text message sent to D-ID
+chat/partial
+[STREAM-started] state updated to: streaming
+stream/started
+chat/answer
+🔄 Stream state updated to empty via stream/done
+stream/done
+🎧 Voice Activity Detection started
+🚨 User interrupt detected while bot speaking
+[INT-check] streamId: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+🎤 Voice detected, listening...
+🎤 Voice detected - started recording
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS
+🔇 Silence detected - processing audio
+🚨 User interrupt detected while bot speaking
+[INT-check] streamId: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+🎤 Voice detected, listening...
+🎤 Voice detected - started recording
+📦 Processing audio chunk: 33005 bytes
+📦 Processing voice input: 33005 bytes
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS
+🔌 Voice Activity Detection stopped
+📦 Processing audio chunk: 3059 bytes
+📦 Processing voice input: 3059 bytes
+🎯 Voice transcription:  Gracias.
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(8)}
+🎯 Voice transcription:  Hola, buenos días, ¿cómo están?
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(8)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-beb6def7-e84a-4971-8bef-34b05744823e", object: "chat.completion", created: 1749835293, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Buenos días, estoy bien, gracias. ¿En qué puedo ayudarte hoy?
+Text message sent to D-ID
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-0aba07c9-95dd-44aa-be16-a127533a53ee", object: "chat.completion", created: 1749835293, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: De nada, ha sido un placer charlar contigo sobre historia antigua, si necesitas más información no dudes en preguntar.
+Text message sent to D-ID
+chat/partial
+[STREAM-started] state updated to: streaming
+stream/started
+chat/answer
+🔄 Stream state updated to empty via stream/done
+stream/done
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(12)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-e7bc3be8-2fda-4509-9800-e9d8efe24afd", object: "chat.completion", created: 1749835356, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: La historia de la construcción de las Pirámides de Egipto es fascinante. Comenzó alrededor del 2580 a.C., cuando el faraón Keops ordenó la construcción de la Gran Pirámide de Giza, una de las Siete Maravillas del Mundo Antiguo. La pirámide se construyó con más de 2,3 millones de bloques de piedra caliza, cada uno con un peso de alrededor de 2,5 toneladas. La construcción duró alrededor de 20 años y requirió la mano de obra de miles de trabajadores.
+
+La pirámide se construyó en una meseta
+Text message sent to D-ID
+[STREAM-started] state updated to: streaming
+stream/started
+chat/partial
+chat/answer
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_gU3TGNfj1jmXnN5W7OZO4$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(14)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-23cd60f1-5d6f-44f3-a4a7-461d52107d48", object: "chat.completion", created: 1749835376, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: El caramelo es un dulce delicioso. ¿Te gustaría saber cómo se hace o tal vez saber sobre su historia?
+Text message sent to D-ID
+chat/partial
+chat/answer
+[STREAM-started] state updated to: streaming
+stream/started
+🔄 Stream state updated to empty via stream/done
+stream/done
+stopping peer connection
+🔌 Voice Activity Detection stopped
