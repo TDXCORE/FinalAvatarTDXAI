@@ -32,7 +32,6 @@ export default function ConversationalAvatar() {
   const sttAbortController = useRef<AbortController | null>(null);
   const turnId = useRef(0);
   const thinkingTimer = useRef<NodeJS.Timeout | null>(null);
-
   const {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
@@ -49,98 +48,6 @@ export default function ConversationalAvatar() {
     videoRef,
     idleVideoRef
   } = useWebRTC();
-
-  // Helper function for adding messages
-  const addConversationMessage = useCallback((role: 'user' | 'assistant' | 'system', content: string) => {
-    const message = {
-      role,
-      content,
-      timestamp: new Date()
-    };
-    
-    setConversationHistory(prev => {
-      const newHistory = [...prev, message];
-      // Keep history manageable (<12 turns as per PRD)
-      if (newHistory.length > 24) {
-        return newHistory.slice(-20);
-      }
-      return newHistory;
-    });
-  }, []);
-
-  // Process user message function - needs to be declared before useLLM
-  const processUserMessage = useCallback(async (userMessage: string) => {
-    console.log('Processing user message:', userMessage);
-    
-    setLatencyStart(Date.now());
-    addConversationMessage('user', userMessage);
-    setPipelineState('thinking');
-    
-    // Build messages with current history plus new user message
-    const messages = [
-      {
-        role: 'system' as const,
-        content: 'Eres Alex, un asistente de IA útil. Mantén las respuestas concisas y naturales para conversación por voz. Limita a 2-3 oraciones. Responde siempre en español.'
-      },
-      ...conversationHistory
-        .filter(msg => msg.role !== 'system')
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-      {
-        role: 'user' as const,
-        content: userMessage
-      }
-    ];
-
-    // Create abort controller for LLM request
-    llmAbortController.current = new AbortController();
-    
-    // Send to LLM - will be handled by useLLM hook
-    console.log('🧠 Sending messages to LLM:', messages);
-    if (sendToLLM) {
-      sendToLLM(messages, llmAbortController.current);
-    }
-  }, [conversationHistory, addConversationMessage]);
-
-  // LLM hook with response handler
-  const { sendMessage: sendToLLM } = useLLM({
-    onResponse: async (response) => {
-      console.log('🎯 LLM Response in callback:', response);
-      addConversationMessage('assistant', response);
-      if (apiConfig) {
-        console.log('🎯 Creating new D-ID controller and sending to avatar');
-        
-        // Ensure WebRTC before each send
-        if (!connectionState || connectionState === 'failed' || connectionState === 'disconnected') {
-          console.log('🔄 WebRTC connection lost, reconnecting...');
-          try {
-            await connectWebRTC(apiConfig);
-            // Wait a moment for connection to stabilize
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (error) {
-            console.error('Failed to reconnect WebRTC:', error);
-            return;
-          }
-        }
-        
-        // Abort previous clip only if still playing
-        if (isAvatarTalking && didAbortController.current) {
-          didAbortController.current.abort();
-          didAbortController.current = null;
-        }
-        
-        const controller = new AbortController();
-        didAbortController.current = controller;
-        setIsAvatarTalking(true);
-        console.log('🎯 Calling sendStreamText with response:', response);
-        sendStreamText(response, controller);
-      } else {
-        console.log('❌ No apiConfig available for D-ID');
-      }
-    }
-  });
 
   const {
     startRecording,
@@ -169,23 +76,27 @@ export default function ConversationalAvatar() {
       console.log('🛑 Pausing main video element');
       videoRef.current.pause();
       videoRef.current.style.opacity = '0';
+      // Don't remove src or srcObject to maintain connection
     }
     
     if (idleVideoRef.current) {
       console.log('🛑 Showing idle video');
       idleVideoRef.current.style.opacity = '1';
       idleVideoRef.current.style.display = 'block';
+      // Ensure idle video is playing
       idleVideoRef.current.play().catch(e => console.log('Idle video play failed:', e));
     }
     
-    // 2. Stop current D-ID stream
+    // 2. Stop current D-ID stream only (don't prevent future streams)
     if (didAbortController.current) {
       console.log('🛑 Aborting current D-ID controller');
       didAbortController.current.abort();
+      // Clear the controller so new ones can be created
       didAbortController.current = null;
     }
     
-    interruptStream();
+    // 🛑 Reactiva interruptStream para cerrar el stream anterior correctamente
+    interruptStream(); // Necesario para que D-ID acepte nuevas entradas
     
     // 3. LLM stream
     if (llmAbortController.current) {
@@ -211,14 +122,15 @@ export default function ConversationalAvatar() {
     
     console.log('🛑 All processes stopped - abort complete');
     
-    // Restore video element after short delay
+    // Restore video element after short delay to allow for new streams
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.style.opacity = '1';
+        console.log('🔄 Video element restored for future use');
       }
     }, 500);
 
-    // Force complete state reset
+    // 👇 Fuerza reinicio completo de estado para permitir nuevas respuestas
     setTimeout(() => {
       if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
       if (videoRef.current) videoRef.current.style.opacity = '1';
@@ -229,6 +141,43 @@ export default function ConversationalAvatar() {
 
   // Make abortTurn available to other components
   abortRef.current = abortTurn;
+
+  const { sendMessage: sendToLLM } = useLLM({
+    onResponse: async (response) => {
+      console.log('🎯 LLM Response in callback:', response);
+      addConversationMessage('assistant', response);
+      if (apiConfig) {
+        console.log('🎯 Creating new D-ID controller and sending to avatar');
+        
+        // Asegura WebRTC antes de cada envío
+        if (!connectionState || connectionState === 'failed' || connectionState === 'disconnected') {
+          console.log('🔄 WebRTC connection lost, reconnecting...');
+          try {
+            await connectWebRTC(apiConfig);
+            // Wait a moment for connection to stabilize
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error('Failed to reconnect WebRTC:', error);
+            return;
+          }
+        }
+        
+        // Aborta el clip SÓLO si sigue sonando
+        if (isAvatarTalking && didAbortController.current) {
+          didAbortController.current.abort();
+          didAbortController.current = null;     // evita matar el clip nuevo
+        }
+        
+        const controller = new AbortController();
+        didAbortController.current = controller;
+        setIsAvatarTalking(true);
+        console.log('🎯 Calling sendStreamText with response:', response);
+        sendStreamText(response, controller);
+      } else {
+        console.log('❌ No apiConfig available for D-ID');
+      }
+    }
+  });
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({
@@ -242,8 +191,8 @@ export default function ConversationalAvatar() {
       formData.append('model', 'whisper-large-v3');
       formData.append('language', 'es');
       formData.append('response_format', 'json');
-      formData.append('temperature', '0.0');
-      formData.append('prompt', 'Conversación en español');
+      formData.append('temperature', '0.0'); // More deterministic
+      formData.append('prompt', 'Conversación en español'); // Context hint
 
       try {
         const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
@@ -261,14 +210,14 @@ export default function ConversationalAvatar() {
             const transcription = data.text.trim();
             console.log('🎯 Voice transcription:', transcription);
             
-            // Filter out only obvious video artifacts
+            // Filter out only obvious video artifacts, allow normal conversation
             const isRealArtifact = transcription.toLowerCase() === 'gracias por ver' ||
                                  transcription.toLowerCase() === 'subtítulos' ||
                                  transcription.toLowerCase() === 'subtitulos' ||
                                  transcription.toLowerCase() === 'suscríbete' ||
                                  transcription.toLowerCase() === 'suscribete';
             
-            // Allow meaningful conversation
+            // Allow meaningful conversation including "en español", "gracias", "hola", etc.
             if (!isRealArtifact && transcription.length > 1) {
               console.log('✅ Processing user message after barge-in:', transcription);
               processUserMessage(transcription);
@@ -296,7 +245,8 @@ export default function ConversationalAvatar() {
     },
     onInterrupt: () => {
       console.log('🛑 VOICE INTERRUPT DETECTED - Same as Stop button');
-      abortRef.current();
+      abortRef.current(); // Direct call to abort function - same as Stop button
+      // Don't set pipeline state here - let the voice processing handle it naturally
     }
   });
 
@@ -313,7 +263,59 @@ export default function ConversationalAvatar() {
     };
 
     initializeApp();
-  }, [addConversationMessage]);
+  }, []); // Remove dependencies to prevent loop
+
+
+
+  const addConversationMessage = (role: 'user' | 'assistant' | 'system', content: string) => {
+    const message = {
+      role,
+      content,
+      timestamp: new Date()
+    };
+    
+    setConversationHistory(prev => {
+      const newHistory = [...prev, message];
+      // Keep history manageable (<12 turns as per PRD)
+      if (newHistory.length > 24) {
+        return newHistory.slice(-20);
+      }
+      return newHistory;
+    });
+  };
+
+  const processUserMessage = async (userMessage: string) => {
+    console.log('Processing user message:', userMessage);
+    
+    setLatencyStart(Date.now());
+    addConversationMessage('user', userMessage);
+    setPipelineState('thinking');
+    
+    // Build messages with current history plus new user message
+    const messages = [
+      {
+        role: 'system' as const,
+        content: 'Eres Alex, un asistente de IA útil. Mantén las respuestas concisas y naturales para conversación por voz. Limita a 2-3 oraciones. Responde siempre en español.'
+      },
+      ...conversationHistory
+        .filter(msg => msg.role !== 'system')
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+      {
+        role: 'user' as const,
+        content: userMessage
+      }
+    ];
+
+    // Create abort controller for LLM request
+    llmAbortController.current = new AbortController();
+    
+    // Send to LLM immediately - no delays needed
+    console.log('🧠 Sending messages to LLM:', messages);
+    sendToLLM(messages, llmAbortController.current);
+  };
 
   const handleConnect = async () => {
     if (!apiConfig) {
@@ -334,6 +336,7 @@ export default function ConversationalAvatar() {
   const handleStartConversation = async () => {
     if (!isRecording) {
       try {
+        // Start Voice Activity Detection instead of manual recording
         const vadStarted = await startVAD();
         if (vadStarted) {
           setIsRecording(true);
@@ -352,7 +355,7 @@ export default function ConversationalAvatar() {
     }
   };
 
-  // Add test event listeners
+  // Add test event listeners after processUserMessage is declared
   useEffect(() => {
     const handleSendStreamText = (event: any) => {
       if (apiConfig) {
@@ -436,34 +439,84 @@ export default function ConversationalAvatar() {
       }
     }, 1000);
     
-    console.log('🧪 Test barge-in setup complete - try speaking now to interrupt');
+    console.log('🧪 Test setup complete - try speaking to interrupt the avatar');
   }, [isConnected, apiConfig, sendStreamText]);
 
+  // Manual interrupt test - simulate user speaking during avatar response
+  const testManualInterrupt = useCallback(() => {
+    console.log('🧪 MANUAL INTERRUPT TEST - Simulating user voice during avatar speech');
+    
+    if (isAvatarTalking) {
+      console.log('🛑 Manually triggering abort function');
+      abortRef.current();
+    } else {
+      console.log('❌ Avatar not currently talking - start a response first');
+    }
+  }, [isAvatarTalking]);
+
+  // Track latency when stream is done
+  useEffect(() => {
+    if (streamEvent === 'done' && latencyStart) {
+      const currentLatency = Date.now() - latencyStart;
+      setLatency(currentLatency);
+      setLatencyStart(null);
+    }
+  }, [streamEvent, latencyStart]);
+
+  // Track avatar talking state based on streaming events
+  useEffect(() => {
+    if (['done', 'error', 'stopped'].includes(streamEvent)) {
+      console.log('🔁 Stream finished or error - resetting avatar state');
+      setIsAvatarTalking(false);
+      setPipelineState('idle');
+      if (videoRef.current) videoRef.current.style.opacity = '1';
+      if (idleVideoRef.current) idleVideoRef.current.style.display = 'none';
+      // Clean abort controller when clip finishes
+      didAbortController.current = null;       // 🧹 listo para el próximo turno
+    } else if (streamEvent === 'started') {
+      setIsAvatarTalking(true);
+      console.log('🗣️ Avatar started speaking');
+    }
+  }, [streamEvent]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800 dark:text-white">
-          Conversational AI Avatar
-        </h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Avatar Video Section */}
-          <div className="lg:col-span-2">
-            <Card className="p-6 h-full">
-              <AvatarVideo
-                videoRef={videoRef}
-                idleVideoRef={idleVideoRef}
-                streamingState={streamingState}
-                isStreamReady={isStreamReady}
-                isRecording={isRecording}
-              />
-            </Card>
+    <div className="h-screen w-full bg-dark-slate font-inter text-slate-200 overflow-hidden flex flex-col">
+      {/* Header - Fixed at top */}
+      <header className="flex-shrink-0 w-full bg-slate-800/50 backdrop-blur-sm border-b border-slate-700 px-4 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
+          <div className="flex items-center space-x-3 flex-shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-sm">AI</span>
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold text-white truncate">Alex</h1>
+              <p className="text-sm text-slate-400 hidden sm:block truncate">D-ID AI Assistant</p>
+            </div>
           </div>
           
-          {/* Controls and Conversation */}
-          <div className="space-y-6">
-            {/* Control Panel */}
-            <Card className="p-4">
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <div className="flex items-center space-x-2 text-sm">
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+              <span className="text-slate-300 hidden sm:inline whitespace-nowrap">{isConnected ? 'Connected' : 'Ready'}</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content - Flexible layout */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Avatar Section */}
+        <div className="flex-1 lg:flex-shrink-0 flex flex-col justify-center items-center p-4 overflow-y-auto">
+          <div className="w-full max-w-md mx-auto">
+            <AvatarVideo
+              videoRef={videoRef}
+              idleVideoRef={idleVideoRef}
+              streamingState={streamingState}
+              isStreamReady={isStreamReady}
+              isRecording={isRecording}
+            />
+
+            <div className="mt-4 space-y-4">
               <ControlPanel
                 isConnected={isConnected}
                 isRecording={isRecording}
@@ -479,24 +532,32 @@ export default function ConversationalAvatar() {
                 onStartConversation={handleStartConversation}
                 onDisconnect={handleDisconnect}
                 onTestBargein={testBargeIn}
-                onManualInterrupt={abortTurn}
+                onManualInterrupt={testManualInterrupt}
               />
-            </Card>
-            
-            {/* Conversation Panel */}
-            <Card className="p-4">
-              <ConversationPanel
-                conversationHistory={conversationHistory}
-                currentTranscription={currentTranscription}
-                isRecording={isRecording}
-                isConnected={isConnected}
-                apiConfig={apiConfig}
-                onManualSend={handleManualSend}
+              
+              {/* Audio Test Panel - for debugging */}
+              <AudioTestPanel 
+                onAudioTest={(audioBlob) => {
+                  console.log('🧪 Test audio captured, processing with STT...');
+                  processAudioWithGroq(audioBlob);
+                }}
               />
-            </Card>
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Conversation Panel */}
+        <div className="w-full lg:w-96 lg:flex-shrink-0 flex">
+          <ConversationPanel
+            conversationHistory={conversationHistory}
+            currentTranscription={currentTranscription}
+            isRecording={isRecording}
+            isConnected={isConnected}
+            apiConfig={apiConfig}
+            onManualSend={handleManualSend}
+          />
+        </div>
+      </main>
     </div>
   );
 }
