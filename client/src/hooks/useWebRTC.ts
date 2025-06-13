@@ -196,7 +196,7 @@ export function useWebRTC() {
         });
       }
     }, 500);
-  }, [lastBytesReceived, videoIsPlaying, onVideoStatusChange]);
+  }, [lastBytesReceived, videoIsPlaying, onVideoStatusChange, detachRemoteVideo]);
 
   const onStreamEvent = useCallback((message: MessageEvent) => {
     if (dataChannelRef.current?.readyState === 'open') {
@@ -550,12 +550,7 @@ export function useWebRTC() {
     // Eliminar track.stop() que los mata permanentemente
 
     // 🔄 Limpia el elemento <video> para que no quede congelado
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    if (idleVideoRef.current) {
-      idleVideoRef.current.srcObject = null;
-    }
+    // Removed old cleanup code - using detachRemoteVideo() instead
 
     setStreamingState('empty'); // Set to empty after stopping tracks
     
@@ -572,6 +567,7 @@ export function useWebRTC() {
       // Grace period for SRTP cleanup
       await new Promise(resolve => setTimeout(resolve, 120));
       console.log('✅ Stream deletion grace period complete');
+      detachRemoteVideo(); // Limpiar video ANTES de marcar como 'cancelling'
       
       // Clear any pending resolvers
       pendingDoneResolvers.current = [];
@@ -589,7 +585,7 @@ export function useWebRTC() {
       console.log('🔄 Stream cancellation complete, RTCPeerConnection maintained');
       console.log('[CANCEL-finally]', 'cancellingRef.current:', cancellingRef.current, 'state:', streamingStateRef.current, 'streamId preserved:', streamId);
     }
-  }, [streamId, sessionId]);
+  }, [streamId, sessionId, detachRemoteVideo]);
 
   return {
     connect,
