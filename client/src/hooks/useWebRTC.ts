@@ -250,15 +250,21 @@ export function useWebRTC() {
     const inbound = event.streams[0] || new MediaStream([event.track]);
     
     if (currentRemoteStream.current !== inbound) {
-      // Opcional: liberar memoria del stream anterior
+      // 1) Pausar video actual para evitar overlapping
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+      
+      // 2) Detener pistas del stream anterior
       currentRemoteStream.current?.getTracks().forEach(t => t.stop());
       currentRemoteStream.current = inbound;
-    }
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = inbound;
-      videoRef.current.muted = false;
-      videoRef.current.play().catch(() => {});
+      
+      // 3) Asignar nuevo srcObject y reanudar reproducción
+      if (videoRef.current) {
+        videoRef.current.srcObject = inbound;
+        videoRef.current.muted = false;
+        videoRef.current.play().catch(() => {});
+      }
     }
 
     statsIntervalRef.current = setInterval(async () => {

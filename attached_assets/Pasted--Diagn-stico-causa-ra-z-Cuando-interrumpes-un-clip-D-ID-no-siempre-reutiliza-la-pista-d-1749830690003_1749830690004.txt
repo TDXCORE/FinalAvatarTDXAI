@@ -1,0 +1,36 @@
+### Diagnóstico – causa raíz
+
+Cuando interrumpes un clip, D-ID **no siempre reutiliza** la pista de vídeo existente: puede generar una pista nueva mientras la anterior (ya pausada) sigue asociada al mismo `<video>`. Al no limpiar/pausar la pista antigua antes de asignar la nueva, el navegador reproduce ambas en paralelo y ves el “overlapping”.
+
+---
+
+## Plan de solución (sin tocar todavía el código)
+
+| Enfoque                              | Idea                                                                                                                                                            | Pros                                                                                 | Contras                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| **A · Pausa y reemplaza**            | En `onTrack`, si llega un stream diferente:<br>1) `videoRef.current.pause()`<br>2) Detener pistas del stream antiguo<br>3) Asignar `srcObject` nuevo y `play()` | • 1 sola línea extra<br>• Ningún estado adicional<br>• Garantiza 1 sola pista activa | • Breve “freeze” (≈50 ms) al cambiar de clip     |
+| **B · Fade-in/out**                  | Igual que A, pero pones un flag `isTransitioning` (200 ms) y controlas la opacidad en `AvatarVideo.tsx`.                                                        | • Transición suave<br>• Sin parpadeo                                                 | • Añade estado, temporizador y CSS extra         |
+| **C · Doble buffer (dos `<video>`)** | Mantienes dos elementos vídeo y alternas cuál está visible.                                                                                                     | • Cambio imperceptible<br>• Cero freeze                                              | • Estructura más compleja<br>• + memoria y + DOM |
+
+### Recomendación
+
+**Enfoque A** — “pausa y reemplaza” — es suficiente para tu caso:
+
+1. **Sencillo**: se limita a \~5 líneas dentro de `onTrack`.
+2. **Robusto**: detiene la pista anterior antes de que la nueva empiece, eliminando solapamiento.
+3. **Sin impacto** en el resto de la lógica (ICE, VAD, LLM, UI).
+4. El micro-freeze suele ser imperceptible; si quisieras afinar más adelante, puedes pasar al fade (B).
+
+---
+
+## Pasos concretos (cuando decidas implementarlo)
+
+1. **Detectar cambio de stream** en `onTrack`.
+2. Si el stream entrante ≠ `currentRemoteStream.current`:
+
+   * `videoRef.current.pause();`
+   * `currentRemoteStream.current.getTracks().forEach(track => track.stop());`
+   * `currentRemoteStream.current = inbound;`
+   * `videoRef.current.srcObject = inbound; videoRef.current.play();`
+
+Con eso aseguras que solo una pista de vídeo está activa en cualquier momento y eliminas el overlapping.
