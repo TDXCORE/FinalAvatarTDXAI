@@ -1,0 +1,40 @@
+[INT-check] streamId: strm_P_r_6IDR9PK5-rjfmvEJf$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+🗑️ Cancelling current D-ID stream
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_P_r_6IDR9PK5-rjfmvEJf$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(6)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-fc33d2e8-44cf-41b7-9d39-1699cdfaae55", object: "chat.completion", created: 1749833288, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Lo siento, pero como te pedí al principio, trataré de mantener mis respuestas concisas. Sin embargo, puedo decirte que los carros han evolucionado mucho en los últimos años, con avances en tecnología como la electricidad, la autonomía y la conectividad, lo que ha mejorado la eficiencia, la seguridad y la comodidad en la conducción. ¿Quieres saber más sobre algún aspecto en particular?
+Text message sent to D-ID
+[STREAM-started] state updated to: streaming
+stream/started
+chat/partial
+chat/answer
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_P_r_6IDR9PK5-rjfmvEJf$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+🗑️ Cancelling current D-ID stream
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_P_r_6IDR9PK5-rjfmvEJf$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(8)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-81e672fc-9930-4ac8-b828-feb27e63db54", object: "chat.completion", created: 1749833299, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: El caramelo es un dulce clásico hecho a partir de azúcar, crema y mantequilla, que se calienta hasta alcanzar un punto de cocción perfecto para obtener una textura suave y cremosa. ¿Te gusta el caramelo en algún postre en particular, como el flan o los helados?
+Text message sent to D-ID
+chat/partial
+chat/answer
+[STREAM-started] state updated to: streaming
+stream/started
+🔄 Stream state updated to empty via stream/done
+stream/done

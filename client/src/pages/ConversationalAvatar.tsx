@@ -38,7 +38,8 @@ export default function ConversationalAvatar() {
     idleVideoRef,
     streamId,
     cancellingRef,
-    streamingStateRef
+    streamingStateRef,
+    clearCurrentVideo
   } = useWebRTC();
 
   const {
@@ -78,15 +79,18 @@ export default function ConversationalAvatar() {
     // 1. Abort current LLM request immediately
     abortCurrentRequest();
     
-    // 2. Cancel current D-ID stream and wait for tracks to stop
+    // 2. Clear video immediately
+    clearCurrentVideo();
+    
+    // 3. Cancel current D-ID stream and wait for tracks to stop
     await cancelCurrentStream();
     
-    // 3. Reset latency tracking
+    // 4. Reset latency tracking
     setLatency(null);
     setLatencyStart(null);
     
     // Note: Removed confusing system message for cleaner UX
-  }, [abortCurrentRequest, cancelCurrentStream, streamId, cancellingRef]);
+  }, [abortCurrentRequest, clearCurrentVideo, cancelCurrentStream, streamId, cancellingRef]);
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({

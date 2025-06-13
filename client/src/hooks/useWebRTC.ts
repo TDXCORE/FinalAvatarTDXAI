@@ -243,6 +243,32 @@ export function useWebRTC() {
     setStreamingState(status as 'empty' | 'streaming');
   }, []);
 
+  // Función para limpiar video durante interrupciones
+  const clearCurrentVideo = useCallback(() => {
+    console.log('[CLEAR-VIDEO] Attempting cleanup during interruption');
+    
+    if (currentRemoteStream.current && videoRef.current) {
+      const trackCount = currentRemoteStream.current.getVideoTracks().length;
+      console.log('[CLEAR-VIDEO] Video tracks found:', trackCount);
+      
+      if (trackCount > 1) {
+        console.log('[CLEAR-VIDEO] Multiple tracks detected, cleaning up');
+        videoRef.current.pause();
+        
+        // Detener pistas anteriores (mantener solo la última)
+        const videoTracks = currentRemoteStream.current.getVideoTracks();
+        videoTracks.slice(0, -1).forEach(track => {
+          track.stop();
+          currentRemoteStream.current!.removeTrack(track);
+        });
+      } else if (trackCount === 1) {
+        // Si solo hay una pista, pausar para evitar overlapping
+        console.log('[CLEAR-VIDEO] Single track, pausing to prevent overlap');
+        videoRef.current.pause();
+      }
+    }
+  }, [videoRef]);
+
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
     if (event.track.kind !== 'video') return; // Solo procesar video tracks
@@ -641,11 +667,8 @@ export function useWebRTC() {
     cancellingRef.current = true;
     console.log('🗑️ Cancelling current D-ID stream');
 
-    // ⏹️ 1) No tocar tracks remotos - D-ID los reutilizará
-    // Eliminar track.stop() que los mata permanentemente
-
-    // 🔄 Limpia el elemento <video> para que no quede congelado
-    // Removed old cleanup code - using detachRemoteVideo() instead
+    // NUEVO: Limpiar video inmediatamente
+    clearCurrentVideo();
 
     setStreamingState('empty'); // Set to empty after stopping tracks
     
@@ -680,7 +703,7 @@ export function useWebRTC() {
       console.log('🔄 Stream cancellation complete, RTCPeerConnection maintained');
       console.log('[CANCEL-finally]', 'cancellingRef.current:', cancellingRef.current, 'state:', streamingStateRef.current, 'streamId preserved:', streamId);
     }
-  }, [streamId, sessionId, detachRemoteVideo]);
+  }, [streamId, sessionId, detachRemoteVideo, clearCurrentVideo]);
 
   return {
     connect,
@@ -699,6 +722,7 @@ export function useWebRTC() {
     streamId,
     cancellingRef,
     streamingStateRef,
+    clearCurrentVideo,
     pendingMessagesCount: pendingMsgRef.current ? 1 : 0
   };
 }
