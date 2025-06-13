@@ -466,8 +466,17 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, initStreamMessage);
       
-      // Wait for new stream to be initialized
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Wait for new stream to be initialized with proper ID
+      let retries = 10;
+      while (!streamId && retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retries--;
+      }
+      
+      if (!streamId) {
+        console.error('❌ Failed to get new streamId after cleanup');
+        return;
+      }
     }
 
     console.log('🎯 Sending text to D-ID avatar:', text);
