@@ -8,7 +8,7 @@ export function useWebRTC() {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const webSocketRef = useRef<WebSocket | null>(null);
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingMessagesRef = useRef<string[]>([]);
+  const pendingMsgRef = useRef<string | null>(null);
   const pendingDoneResolvers = useRef<(() => void)[]>([]);
   
   const [connectionState, setConnectionState] = useState('');
@@ -186,48 +186,12 @@ export function useWebRTC() {
           break;
         case 'stream/ready':
           status = 'ready';
-          // Process any queued messages when stream becomes ready
-          if (pendingMessagesRef.current.length > 0) {
-            console.log('🚀 Processing', pendingMessagesRef.current.length, 'queued messages');
-            const queuedMessages = [...pendingMessagesRef.current];
-            pendingMessagesRef.current = []; // Clear queue
-            
-            // Send the first queued message (usually the latest response after interrupt)
-            if (queuedMessages.length > 0) {
-              const nextMessage = queuedMessages[queuedMessages.length - 1]; // Get latest message
-              console.log('📤 Sending queued message:', nextMessage.substring(0, 50) + '...');
-              
-              // Use setTimeout to ensure stream is fully ready
-              setTimeout(() => {
-                if (webSocketRef.current && streamId && sessionId) {
-                  const streamMessage = {
-                    type: 'stream-text',
-                    payload: {
-                      script: {
-                        type: 'text',
-                        input: nextMessage,
-                        provider: {
-                          type: 'elevenlabs',
-                          voice_id: 'ucWwAruuGtBeHfnAaKcJ'
-                        },
-                        ssml: true
-                      },
-                      config: {
-                        stitch: true
-                      },
-                      background: {
-                        color: '#FFFFFF'
-                      },
-                      session_id: sessionId,
-                      stream_id: streamId,
-                      presenter_type: 'clip'
-                    }
-                  };
-                  sendMessage(webSocketRef.current, streamMessage);
-                  console.log('✅ Queued message sent to D-ID');
-                }
-              }, 100);
-            }
+          // Process pending message with ICE stabilization buffer
+          if (pendingMsgRef.current) {
+            const pendingMsg = pendingMsgRef.current;
+            pendingMsgRef.current = null;
+            console.log('📤 Flushing queued message after 200ms buffer:', pendingMsg.substring(0, 50) + '...');
+            setTimeout(() => flushPendingMessage(pendingMsg), 200);
           }
           break;
         case 'stream/error':
@@ -417,9 +381,8 @@ export function useWebRTC() {
 
     if (!webSocketRef.current || !streamId || !sessionId) {
       console.error('D-ID connection not ready');
-      // Queue the message for when connection is restored
-      pendingMessagesRef.current.push(text);
-      console.log('📦 Message queued for when D-ID reconnects:', text.substring(0, 50) + '...');
+      pendingMsgRef.current = text; // Sobrescribe anterior
+      console.log('📦 Message queued (latest wins):', text.substring(0, 50) + '...');
       return;
     }
 
@@ -456,7 +419,7 @@ export function useWebRTC() {
 
 
   // Wait for real stream/done event - always wait for D-ID confirmation
-  const waitForRealDone = useCallback((timeout = 2000): Promise<void> => {
+  const waitForRealDone = useCallback((timeout = 1000): Promise<void> => {
     return new Promise((resolve, reject) => {
       let resolved = false;
       
@@ -486,6 +449,51 @@ export function useWebRTC() {
       pendingDoneResolvers.current.push(resolveWrapper);
     });
   }, []);
+
+  // Cleanup WebSocket listeners to prevent memory leaks
+  const cleanupWebSocketListeners = useCallback(() => {
+    if (webSocketRef.current) {
+      webSocketRef.current.onmessage = null;
+      webSocketRef.current.onopen = null;
+      webSocketRef.current.onclose = null;
+      webSocketRef.current.onerror = null;
+    }
+  }, []);
+
+  // Flush single pending message with safety checks
+  const flushPendingMessage = useCallback((text: string) => {
+    if (webSocketRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!streamId || !sessionId) return; // Prevent send before stream initialization
+    
+    console.log('Sending flushed message to D-ID avatar:', text);
+    
+    const streamMessage = {
+      type: 'stream-text',
+      payload: {
+        script: {
+          type: 'text',
+          input: text,
+          provider: {
+            type: 'elevenlabs',
+            voice_id: 'ucWwAruuGtBeHfnAaKcJ'
+          },
+          ssml: true
+        },
+        config: {
+          stitch: true
+        },
+        background: {
+          color: '#FFFFFF'
+        },
+        session_id: sessionId,
+        stream_id: streamId,
+        presenter_type: 'clip'
+      }
+    };
+
+    sendMessage(webSocketRef.current, streamMessage);
+    console.log('✅ Flushed message sent to D-ID');
+  }, [streamId, sessionId]);
 
   const cancelCurrentStream = useCallback(async (): Promise<void> => {
     if (!webSocketRef.current || !streamId || !sessionId || 
@@ -575,6 +583,6 @@ export function useWebRTC() {
     currentStreamId: streamId,
     cancellingRef,
     streamingStateRef,
-    pendingMessagesCount: pendingMessagesRef.current.length
+    pendingMessagesCount: pendingMsgRef.current ? 1 : 0
   };
 }

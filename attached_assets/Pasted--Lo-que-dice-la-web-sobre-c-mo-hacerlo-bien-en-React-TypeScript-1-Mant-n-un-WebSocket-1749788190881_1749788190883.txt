@@ -1,0 +1,104 @@
+**Lo que dice la web sobre cómo hacerlo bien en React + TypeScript**
+
+### 1. Mantén *un* WebSocket vivo y autocontrolado
+
+* **Hook dedicado** que abra el socket, registre *una sola* función `onmessage`, y devuelva métodos `send`, `close`, `reconnect`.
+* Usa un `useEffect` con retorno que borre **todos** los listeners antes de cerrar el socket; evita fugas y duplicados. ([stackoverflow.com][1], [ably.com][2])
+
+```ts
+function useDidSocket(url: string) {
+  const socketRef = useRef<WebSocket>();
+  const listenersRef = useRef<{[k: string]: Function[]}>({});
+
+  const connect = () => {
+    const ws = new WebSocket(url);
+    ws.onopen    = () => flushQueue();           // envía lo pendiente
+    ws.onmessage = evt => emit('message', evt);  // único listener raíz
+    ws.onclose   = tryReconnect;
+    socketRef.current = ws;
+  };
+
+  // cleanup completo
+  useEffect(() => { connect(); return () => socketRef.current?.close(); }, []);
+}
+```
+
+### 2. Cola **single-value, “último gana”**
+
+* No uses `Array.push`; guarda sólo el último mensaje pendiente en un `ref`.
+* Cuando `onopen` o `stream/ready` disparen `flushQueue`, se envía lo que haya y se limpia el ref.
+* Este patrón ya lo emplea `react-use-websocket` con su parámetro `keep`. ([github.com][3])
+
+```ts
+const pendingRef = useRef<string|null>(null);
+
+function queue(text: string) {
+  pendingRef.current = text;          // sobrescribe
+  if (socketRef.current?.readyState === WebSocket.OPEN) flushQueue();
+}
+
+function flushQueue() {
+  if (!pendingRef.current) return;
+  socketRef.current!.send(pendingRef.current);
+  pendingRef.current = null;
+}
+```
+
+### 3. `useRef` para leer estado síncrono
+
+* `useState` dispara renders asíncronos; cuando verificas justo después de setear puede venir desfasado.
+* Guárdalo también en un `useRef` y léelo en guards críticos (`cancelCurrentStream`). ([geeksforgeeks.org][4])
+
+```ts
+const [streamingState, _setState] = useState<'empty'|'streaming'>('empty');
+const stateRef = useRef(streamingState);
+function setState(s) { stateRef.current = s; _setState(s); }
+```
+
+### 4. Esperar el `stream/done` real (no un timeout mágico)
+
+* Stack Overflow y la guía de Ably coinciden: **suscríbete** al evento de fin y resuelve la promesa cuando llegue; usa un timeout solo como *fallback*. ([stackoverflow.com][1], [ably.com][2])
+
+```ts
+function waitForDone(ws: WebSocket, ms = 1000) {
+  return new Promise<void>((res) => {
+    const t = setTimeout(res, ms);                 // fallback
+    const h = (e: MessageEvent) => {
+      const { event } = JSON.parse(e.data);
+      if (event === 'stream/done' || event === 'stream/error') {
+        clearTimeout(t);
+        ws.removeEventListener('message', h);
+        res();
+      }
+    };
+    ws.addEventListener('message', h);
+  });
+}
+```
+
+### 5. Reconexión exponencial & limpieza de listeners
+
+* En cada reconexión **borra** listeners antiguos y crea otros nuevos: evita que el mismo mensaje se dispare varias veces.
+* Usa back-off exponencial; 1 s, 2 s, 4 s… para no sobrecargar. ([reddit.com][5])
+
+---
+
+## Flujo recomendado (resumen)
+
+1. **INTERRUPT**
+
+   1. `abort()` → corta LLM.
+   2. `stopTracks()` + `pc.close()` → vídeo se va.
+   3. `DELETE /streams/{id}`.
+   4. `await waitForDone()` (o timeout).
+2. **Si socket se cierra / timeout** → `needsReconnect=true`, se encola último texto.
+3. **`connect()`** abre nuevo WS → espera `stream/ready` → `flushQueue()` (después de 200 ms buffer ICE).
+4. **Nuevo turno** solo si `stateRef.current === 'empty'` y `cancelling=false`.
+
+Con estos cinco bloques —todos avalados por patrones de la comunidad y tutoriales recientes— obtienes la forma más **lógica, eficiente y libre de “races”** para TypeScript + React.
+
+[1]: https://stackoverflow.com/questions/62768520/reconnecting-web-socket-using-react-hooks?utm_source=chatgpt.com "Reconnecting web socket using React Hooks - Stack Overflow"
+[2]: https://ably.com/blog/websockets-react-tutorial?utm_source=chatgpt.com "The complete guide to WebSockets with React - Ably Realtime"
+[3]: https://github.com/robtaussig/react-use-websocket?utm_source=chatgpt.com "robtaussig/react-use-websocket - GitHub"
+[4]: https://www.geeksforgeeks.org/reactjs/real-time-updates-with-websockets-and-react-hooks/?utm_source=chatgpt.com "Real-time Updates with WebSockets and React Hooks"
+[5]: https://www.reddit.com/r/reactjs/comments/tufxhe/reconnecting_websockets_with_functional/?utm_source=chatgpt.com "Reconnecting WebSockets With Functional Components and Hooks?"

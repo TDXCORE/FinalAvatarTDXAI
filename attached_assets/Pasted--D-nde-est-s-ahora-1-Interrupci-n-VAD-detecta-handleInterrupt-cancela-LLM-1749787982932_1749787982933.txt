@@ -1,0 +1,81 @@
+### ✅ Dónde estás ahora
+
+1. **Interrupción**
+
+   * VAD detecta → `handleInterrupt()` cancela LLM, hace `DELETE /streams/{id}`, cierra tracks y `RTCPeerConnection`.
+   * Si D-ID no manda `stream/done` en ≤ 2 s, marcas la sesión como *needs-reconnect* y cierras el WebSocket.
+
+2. **Re-conexión**
+
+   * Abres un WebSocket nuevo → recibes `stream/ready` → restauras estado a **`empty`**.
+
+3. **Cola de mensajes**
+
+   * Mientras el socket no está listo, los textos ―último gana― se guardan en `pendingMessages`.
+   * En `stream/ready` envías el más reciente y vacías la cola.
+
+El síntoma que veías (la respuesta del LLM se muestra en el chat pero no suena) debía solucionarse con ese **message queue + auto-reconnect**. Buen paso 👍.
+
+---
+
+## 🔍 Lo que aún conviene revisar
+
+| Riesgo                              | Qué verificar / ajustar                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Duplicados**                      | Si el usuario escribe varias veces durante la reconexión, envía **solo el último** (tu “latest first”); elimina los demás para evitar ráfagas cuando el socket vuelva.   |
+| **Orden de eventos**                | Asegúrate de procesar `stream/ready` **antes** que cualquier `chat/partial` residual. Si recibes partials prematuramente, ignóralos hasta que `stream/started` confirme. |
+| **Pendientes + nuevos turnos**      | Cuando entra nueva voz/tecla mientras la cola no está vacía, machaca el mensaje anterior: `pendingMessages = [nuevo]`. Así evitas reproducir respuestas obsoletas.       |
+| **Reconexión infinita**             | Si fallan tres reconexiones seguidas, notifica al usuario (“Avatar no disponible, inténtalo más tarde”) y reintenta con back-off exponencial.                            |
+| **Fugas de listeners**              | Cada vez que creas un WebSocket, limpia `socket.on('message', …)` anteriores para no acumular callbacks (usa `off` o `abortController`).                                 |
+| **Timeout realista**                | 2 s suele bastar, pero mide: si tu RTT a D-ID ronda 80 ms, podrías bajar a 1 s para respuesta más ágil.                                                                  |
+| **Persistencia de cola (opcional)** | Si recargas la página durante una reconexión perderás el mensaje. Guarda `pendingMessages` en `sessionStorage`; al boot, si WebSocket ≠ ready, reprográmalo.             |
+
+---
+
+## 🧪 Plan de pruebas final
+
+| Caso                                                 | Pasos                                                                    | Resultado esperado                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| **A. Interrupción normal**                           | Hablar → interrumpir                                                     | Avatar se calla & nueva respuesta suena sin delay (< 300 ms). |
+| **B. Interrupción con D-ID lento**                   | Simula caída: bloquea DELETE con dev-tools → espera timeout → reconexión | Mensaje cola → suena tras reconectar (< 3 s).                 |
+| **C. Spam durante reconexión**                       | Interrumpe → mientras reconecta escribe 3 textos                         | Solo el **último** texto se reproduce.                        |
+| **D. Tres fallos seguidos**                          | Desconecta internet brevemente tres veces                                | UI muestra alerta “Avatar no disponible”.                     |
+| **E. Reload con cola** (si implementas persistencia) | Interrumpe → recarga antes del `ready`                                   | Al reconectar reproduce la respuesta pendiente.               |
+
+---
+
+## 🧩 Código (snapshot) para la cola (resumen)
+
+```ts
+// refs
+const pendingMsgRef = useRef<string|null>(null);
+
+// envío
+async function safeSend(text: string) {
+  if (needsReconnect || streamingStateRef.current !== 'empty') {
+    pendingMsgRef.current = text;               // ← cola
+    return;
+  }
+  await sendStreamText(text);                   // ← tu función real
+}
+
+// al recibir 'stream/ready'
+if (pendingMsgRef.current) {
+  const txt = pendingMsgRef.current;
+  pendingMsgRef.current = null;
+  safeSend(txt);
+}
+```
+
+*(Añade guardias para no duplicar listeners y borrar la cola al abortar.)*
+
+---
+
+### Con esto tu ciclo queda robusto:
+
+1. **Detiene audio** instantáneamente.
+2. Garantiza **`stream/done`** (o fallback) antes del siguiente turn.
+3. **Recupera** conexión si D-ID no responde.
+4. **Reproduce** automáticamente la respuesta pendiente.
+
+Haz los tests A-E y, si todos pasan, tu flujo de interrupción estará a prueba de usuarios impacientes 🚀.
