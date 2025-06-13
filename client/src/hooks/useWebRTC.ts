@@ -36,13 +36,13 @@ export function useWebRTC() {
   const currentRemoteStream = useRef<MediaStream | null>(null);
 
   const detachRemoteVideo = useCallback(() => {
-    if (currentRemoteStream.current) {
-      currentRemoteStream.current.getTracks().forEach(t => t.stop());
-      currentRemoteStream.current = null;
-    }
+    // Solo limpia el elemento de video, NO detiene los tracks
+    // D-ID reutiliza los tracks entre streams
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    // Mantener referencia al stream pero no matar tracks
+    currentRemoteStream.current = null;
   }, []);
 
   const onIceGatheringStateChange = useCallback(() => {
@@ -166,10 +166,7 @@ export function useWebRTC() {
   const onTrack = useCallback((event: RTCTrackEvent) => {
     if (!event.track) return;
     
-    // Limpiar stream anterior
-    detachRemoteVideo();
-    
-    // Asignar nuevo stream
+    // Asignar nuevo stream directamente
     const inbound = event.streams[0] || new MediaStream([event.track]);
     currentRemoteStream.current = inbound;
     
