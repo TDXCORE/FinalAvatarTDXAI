@@ -549,6 +549,7 @@ export function useWebRTC() {
         
         // Close and reconnect WebSocket to clear D-ID session state
         if (webSocketRef.current) {
+          cleanupWebSocketListeners();
           webSocketRef.current.close();
           webSocketRef.current = null;
         }

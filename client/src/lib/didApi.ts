@@ -1,4 +1,7 @@
-export async function connectToWebSocket(url: string, apiKey: string): Promise<WebSocket> {
+export async function connectToWebSocket(url: string, apiKey: string, cleanup?: () => void): Promise<WebSocket> {
+  if (cleanup) {
+    cleanup(); // Clean previous listeners before creating new connection
+  }
   return new Promise((resolve, reject) => {
     // D-ID WebSocket connection with authorization
     const wsUrl = `${url}?authorization=Basic+${btoa(apiKey + ':')}`;

@@ -275,8 +275,12 @@ export default function ConversationalAvatar() {
   // Handle automatic reconnection when needed
   useEffect(() => {
     if (streamEvent === 'needs-reconnect' && apiConfig && !isConnected) {
-      console.log('🔄 Auto-reconnecting to D-ID after timeout...');
-      connectWebRTC(apiConfig);
+      console.log('🔄 Auto-reconnecting to D-ID after cleanup buffer...');
+      setTimeout(() => {
+        if (!isConnected) { // Double-check after delay
+          connectWebRTC(apiConfig);
+        }
+      }, 500); // Buffer time for proper cleanup
     }
   }, [streamEvent, apiConfig, isConnected, connectWebRTC]);
 
