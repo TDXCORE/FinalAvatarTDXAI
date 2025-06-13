@@ -206,6 +206,22 @@ export function useWebRTC() {
           pendingDoneResolvers.current.forEach(r => r());
           pendingDoneResolvers.current = [];
           break;
+        case 'chat/partial':
+          status = 'chat/partial';
+          // Transition from 'cancelling' to normal flow
+          if (streamingStateRef.current === 'cancelling') {
+            setStreamingState('empty');
+            streamingStateRef.current = 'empty';
+          }
+          break;
+        case 'chat/answer':
+          status = 'chat/answer';
+          // Ensure state transitions properly after cancellation
+          if (streamingStateRef.current === 'cancelling') {
+            setStreamingState('empty');
+            streamingStateRef.current = 'empty';
+          }
+          break;
         default:
           status = 'dont-care';
           break;
@@ -381,10 +397,22 @@ export function useWebRTC() {
     setStreamingState('empty');
   }, [sessionId, streamId, stopAllStreams, closePC]);
 
-  const sendStreamText = useCallback((text: string) => {
-    if (cancellingRef.current || streamingState !== 'empty') {
+  const sendStreamText = useCallback(async (text: string) => {
+    if (cancellingRef.current || (streamingState !== 'empty' && streamingState !== 'cancelling')) {
       console.warn('Stream todavía cancelándose o no vacío, omite envío.');
       return;
+    }
+
+    // Check if peerConnection is missing and needs reconnection
+    if (!peerConnectionRef.current || connectionState === 'needs-reconnect') {
+      console.log('🔄 RTCPeerConnection missing, reconnecting...');
+      if (apiConfigRef.current) {
+        await connect(apiConfigRef.current);
+        return; // Message will be queued and sent after reconnection
+      } else {
+        console.error('No API config available for reconnection');
+        return;
+      }
     }
 
     if (!webSocketRef.current || !streamId || !sessionId) {
