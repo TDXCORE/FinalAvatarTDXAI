@@ -1,0 +1,50 @@
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+SDP message received from D-ID
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+stream/ready
+[streamingState] empty isBotSpeaking: false
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(2)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-3ef25c37-f2e6-4e82-a247-81da0937f200", object: "chat.completion", created: 1749786952, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Hola, estoy bien, gracias. ¿En qué puedo ayudarte hoy?
+Text message sent to D-ID
+chat/partial
+stream/started
+forcing stream/ready
+chat/answer
+stream/done
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+🚨 Handling user interrupt
+🗑️ Cancelling current D-ID stream
+Stream already finished, resolving immediately
+✅ Stream cancellation confirmed
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(4)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-987ef205-edf9-47f1-94a2-e453e8a9ae30", object: "chat.completion", created: 1749786964, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+choices: Array(1)
+created: 1749786964
+id: "chatcmpl-987ef205-edf9-47f1-94a2-e453e8a9ae30"
+model: "llama-3.3-70b-versatile"
+object: "chat.completion"
+system_fingerprint: "fp_6507bcfb6f"
+usage: Object
+usage_breakdown: null
+x_groq: Object
+[[Prototype]]: Object
+Sending text to D-ID avatar: Lo siento, pero puedo resumirte una historia breve. Había una vez un joven llamado Leo que viajó a una isla misteriosa en busca de un tesoro legendario. Allí conoció a una chica llamada Sofía, juntos superaron obstáculos y desentrañaron secretos.
+Text message sent to D-ID

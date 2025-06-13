@@ -65,8 +65,8 @@ export default function ConversationalAvatar() {
     }
   });
 
-  // Bot speaking state for interrupt detection
-  const isBotSpeaking = streamingState === 'streaming';
+  // Bot speaking state for interrupt detection - use synchronous ref
+  const isBotSpeaking = streamingStateRef.current === 'streaming';
 
   // Interrupt handler
   const handleInterrupt = useCallback(async () => {

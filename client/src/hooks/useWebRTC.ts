@@ -177,6 +177,7 @@ export function useWebRTC() {
         case 'stream/done':
           status = 'done';
           setStreamingState('empty'); // Update state immediately
+          console.log('🔄 Stream state updated to empty via stream/done');
           // Libera promesas que esperaban el 'done'
           pendingDoneResolvers.current.forEach(r => r());
           pendingDoneResolvers.current = [];
