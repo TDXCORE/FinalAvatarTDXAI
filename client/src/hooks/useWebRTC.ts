@@ -70,6 +70,9 @@ export function useWebRTC() {
       if (state === 'failed' || state === 'closed') {
         stopAllStreams();
         closePC();
+      } else if (state === 'disconnected') {
+        console.log('🔄 ICE disconnected, marking for reconnection');
+        setConnectionState('needs-reconnect');
       }
     }
   }, []);
@@ -176,6 +179,7 @@ export function useWebRTC() {
         case 'stream/started':
           status = 'started';
           setStreamingState('streaming');
+          streamingStateRef.current = 'streaming';
           break;
         case 'stream/done':
           status = 'done';
@@ -479,12 +483,10 @@ export function useWebRTC() {
     cancellingRef.current = true;
     console.log('🗑️ Cancelling current D-ID stream');
 
-    // ⏹️ 1) Detén audio + video YA mismo
+    // ⏹️ 1) Detén solo los tracks remotos, mantén RTCPeerConnection viva
     if (peerConnectionRef.current) {
       peerConnectionRef.current.getReceivers()
-        .forEach(r => r.track?.stop());
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
+        .forEach(receiver => receiver.track?.stop());
     }
 
     // 🔄 Limpia el elemento <video> para que no quede congelado
@@ -518,13 +520,14 @@ export function useWebRTC() {
     } catch (error) {
       console.error('Error during WebSocket delete:', error);
     } finally {
-      // Reset state immediately - no reconnection needed
+      // Reset solo IDs de stream, mantén conexión WebRTC
       setStreamId(null);
       setSessionId(null);
-      setStreamingState('empty');
+      setStreamingState('cancelling');
+      streamingStateRef.current = 'cancelling';
       cancellingRef.current = false;
       
-      console.log('🔄 Stream cancellation complete, ready for new messages');
+      console.log('🔄 Stream cancellation complete, RTCPeerConnection maintained');
     }
   }, [streamId, sessionId]);
 

@@ -1,0 +1,48 @@
+Qué está pasando y por qué no ves el nuevo vídeo
+Interrupción correcta
+
+Envías {"type":"delete-stream","streamId":"…"} por WebSocket.
+
+D-ID corta su flujo; tú esperas 120 ms → OK.
+
+Cierre de la tubería
+
+En cancelCurrentStream() ejecutas
+
+ts
+Copiar
+stopAllRemoteTracks();      // los tracks se paran
+peerConnectionRef.current?.close();   // 🔒 se cierra el RTCPeerConnection
+peerConnectionRef.current = null;
+Con eso destruyes completamente la sesión WebRTC que D-ID había negociado.
+
+Nuevo texto se envía
+
+Tu front hace el POST text y D-ID acepta el mensaje (por eso ves Text message sent), pero…
+
+Para poder emitir el vídeo del “nuevo turno” D-ID necesita otra conexión RTP (u offer/answer de renegociación). Esa lógica vive en tu función connectWebRTC / createPeerConnection.
+
+Como la peer‐connection está a null y no la recreas inmediatamente (ya no disparas connectWebRTC porque el estado no es “needs-reconnect”), no hay canal donde entregar el vídeo.
+
+Eventos ausentes
+
+Sin peer-connection activa, el backend de D-ID no llega a la fase de stream/started, chat/partial, etc. → no aparecen en los logs y no se ve el avatar.
+
+En resumen:
+
+El nuevo mensaje sí llega a D-ID, pero hemos cerrado la autopista por la que debía viajar el vídeo; el backend no puede arrancar un stream hasta que abras una peer-connection nueva o mantengas la existente.
+
+Opciones conceptuales (sin tocar código)
+Estrategia	Qué implicaría
+No cerrar el RTCPeerConnection en interrupciones	Mantienes la canalización RTP viva; basta con parar los tracks para silenciar y dejar que la misma conexión transporte el stream siguiente.
+Recrear la peer-connection justo antes de enviar el siguiente mensaje	Igual que haces al principio: renegociación SDP → stream/ready → D-ID puede arrancar.
+Reconectar sólo si detectas que la PC está null	Sería un gatillo automático: si vas a enviar texto y no existe conexión, llamas primero a tu rutina de connectWebRTC.
+
+Hasta que una de esas rutas se ponga en práctica, el flujo “mensaje → avatar habla” quedará cortado tras cada interrupción exitosa.
+
+
+
+
+
+
+

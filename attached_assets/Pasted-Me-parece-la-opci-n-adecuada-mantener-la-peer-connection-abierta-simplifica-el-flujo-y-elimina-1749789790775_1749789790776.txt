@@ -1,0 +1,30 @@
+Me parece la **opción adecuada** — mantener la peer-connection abierta simplifica el flujo y elimina la latencia extra.
+Antes de tocar código, ten en cuenta estos detalles para que no se te escape ningún “edge-case”:
+
+| Punto a validar                        | Por qué importa                                                                                                                            | Cómo manejarlo                                                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. `track.stop()` no derriba la PC** | Parar el `MediaStreamTrack` remoto dispara un evento `ended`, pero la conexión ICE se mantiene **connected/stable**.                       | Usa exactamente `receiver.track?.stop()`; no llames `removeTrack`, así evitas renegociación automática.                                                                |
+| **2. Resetear solo IDs**               | D-ID exige que el próximo texto incluya un `sessionId`/`streamId` nuevo.                                                                   | Basta con setear esas refs a `null`. Cuando hagas el siguiente `POST /streams`, D-ID devolverá IDs frescos y seguirá usando el mismo PC.                               |
+| **3. Limpiar `<video>`**               | Si no borras el `srcObject`, el último frame puede quedarse congelado.                                                                     | `videoRef.current.srcObject = null` está perfecto; cuando llegue el nuevo track se reasigna solo.                                                                      |
+| **4. Timeout de silencio**             | Entre el `delete-stream` y el nuevo `stream/started` pueden pasar 50–150 ms. Asegúrate de no disparar otra interrupción durante ese hueco. | Mantén `streamingState='cancelling'` hasta que recibas el primer `chat/partial` del nuevo turno.                                                                       |
+| **5. Plan B**                          | Si por algún motivo D-ID decide cerrar su lado RTP al borrar el stream, la conexión se irá a `iceConnectionState = disconnected`.          | Añade un `pc.oniceconnectionstatechange` que, si pasa a `disconnected/failed`, marque `needs-reconnect` y llame a `connectWebRTC()`. Así cubres el 1 % de casos raros. |
+
+### Secuencia esperada
+
+```
+INTERRUPT
+  ├ delete-stream (WS)
+  ├ stop remote tracks → <video> se vacía
+  ├ state = 'empty'
+  └ POST nuevo texto
+        ↳ stream/started
+        ↳ llega nuevo track  
+```
+
+No habrá renegociación SDP, el ICE seguirá “connected” y el avatar debería reanudar el vídeo en \~250 ms.
+
+---
+
+#### Recomendación final
+
+Procede con la implementación descrita (mantener PC viva), pero deja el manejador de `iceConnectionState` para reconexión de reserva; así tendrás un flujo **ultrarrápido** en el 99 % de los casos y resiliencia en el 1 % restante.
