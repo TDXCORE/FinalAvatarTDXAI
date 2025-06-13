@@ -1,0 +1,130 @@
+Coincidimos: el des-fase entre stream/done y streamingState provoca “falsas” cancelaciones
+A continuación tienes un paquete completo para sincronizar estado, evitar cancelaciones tardías y liberar inmediatamente el semáforo cuando el stream ya terminó.
+
+1. Concepto
+Objetivo	Cómo se logra
+Estado 100 % fiel	onStreamEvent('stream/done') cambia streamingState → 'empty' antes de cualquier otra lógica.
+Evitar cancelar stream fantasma	cancelCurrentStream() primero comprueba streamingState === 'streaming'; si no, retorna.
+Semáforo robusto	waitForRealDone() resuelve en el acto si streamingState !== 'streaming' al entrar.
+Sin delay ficticio	Eliminamos el setTimeout(...) de “300 ms”. El bloqueador real es: no se puede mandar otro texto mientras streamingState !== 'empty' o cancellingRef.
+
+2. Código—diffs clave
+2-A client/src/hooks/useWebRTC.ts
+diff
+Copiar
+@@  // refs y estados
+ const [streamingState, setStreamingState] =
+-  useState<'empty'|'streaming'|'cancelling'>('empty');
++  useState<'empty'|'streaming'|'cancelling'>('empty');
+
+ const pendingDoneResolvers = useRef<(() => void)[]>([]);
+diff
+Copiar
+@@  // handler de eventos entrantes del WebSocket D-ID
+   switch (event) {
+     case 'stream/started':
+       setStreamingState('streaming');
+       break;
+     case 'stream/done':
+-      status = 'done';
+-      setStreamingState('empty');          // antes estaba más abajo
++      status = 'done';
++      setStreamingState('empty');          // 🔥 actualiza de inmediato
++
++      // Libera promesas que esperaban el 'done'
++      pendingDoneResolvers.current.forEach(r => r());
++      pendingDoneResolvers.current = [];
+       break;
+     case 'stream/error':
+       setStreamingState('empty');
+       break;
+diff
+Copiar
+@@  // helper semáforo REAL
+-function waitForRealDone(timeout = 1200): Promise<void> {
+-  return new Promise((resolve) => {
+-    let done = false;
+-    const tid = setTimeout(() => {
+-      if (!done) resolve();        // fallback
+-    }, timeout);
+-
+-    pendingDoneResolvers.current.push(() => {
+-      done = true;
+-      clearTimeout(tid);
+-      resolve();
+-    });
+-  });
++function waitForRealDone(): Promise<void> {
++  // ⏩ Si YA no estamos “streaming”, resuelve en el acto
++  if (streamingStateRef.current !== 'streaming') return Promise.resolve();
++
++  return new Promise(resolve => {
++    pendingDoneResolvers.current.push(resolve);
++  });
+ }
+diff
+Copiar
+@@  // cancelación
+   const cancelCurrentStream = useCallback(async (): Promise<void> => {
+-    if (!currentStreamIdRef.current || cancellingRef.current) return;
++    if (!currentStreamIdRef.current
++        || cancellingRef.current
++        || streamingState !== 'streaming') {
++      console.log('[cancel] No hay stream activo; omite.');
++      return;
++    }
+(resto permanece igual: stop tracks, close PC, DELETE y luego await waitForRealDone())
+
+2-B Verificación antes de mandar texto (sendStreamText o equivalente)
+ts
+Copiar
+if (cancellingRef.current || streamingState !== 'empty') {
+  console.warn('[send] Stream todavía activo o cancelando, espera…');
+  return;
+}
+3. Flujo resultante (tiempos reales)
+pgsql
+Copiar
+stream/started
+chat/answer
+stream/done          →   setStreamingState('empty')
+                       (usuario aún no ha interrumpido)
+[User hits interrupt] →  handleInterrupt()
+  └─ streamingState !== 'streaming'  →  NO cancel(), NO abort()
+  └─ sendStreamText() permitido      →  stream/started (nuevo)
+Si el usuario interrumpe mientras el bot sigue hablando:
+
+bash
+Copiar
+stream/started
+INTERRUPT
+  ├─ abort LLM
+  ├─ cancelCurrentStream()  ✓  (ahora streamingState='cancelling')
+  ├─ waitForRealDone() bloquea
+[WebSocket] stream/done
+  └─ resolve()  → streamingState='empty'
+sendStreamText() se desbloquea
+stream/started (nuevo)
+4. Resultado esperado
+Sin “Manual interrupt” fantasma cuando el stream ya había terminado.
+
+stream/done siempre llega antes del siguiente stream/started.
+
+No vuelve a aparecer el timeout de waitForRealDone.
+
+El avatar se corta visualmente y la lógica backend queda limpia.
+
+Con esta sincronización inmediata entre el evento de WebSocket y tu estado local, eliminas la última carrera y estabilizas la cadena completa de interrupción–reinicio.
+
+
+
+
+
+
+
+
+
+
+Herramientas
+
+

@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { connectToWebSocket, sendMessage } from '@/lib/didApi';
 
 export function useWebRTC() {
@@ -169,22 +169,20 @@ export function useWebRTC() {
           break;
         case 'stream/done':
           status = 'done';
-          setStreamingState('empty');
-          // Notify waiting promise if exists
-          if (pendingStreamDoneRef.current) {
-            pendingStreamDoneRef.current(event);
-          }
+          setStreamingState('empty'); // Update state immediately
+          // Libera promesas que esperaban el 'done'
+          pendingDoneResolvers.current.forEach(r => r());
+          pendingDoneResolvers.current = [];
           break;
         case 'stream/ready':
           status = 'ready';
           break;
         case 'stream/error':
           status = 'error';
-          setStreamingState('empty');
-          // Notify waiting promise if exists
-          if (pendingStreamDoneRef.current) {
-            pendingStreamDoneRef.current(event);
-          }
+          setStreamingState('empty'); // Update state immediately
+          // Libera promesas que esperaban el 'done'
+          pendingDoneResolvers.current.forEach(r => r());
+          pendingDoneResolvers.current = [];
           break;
         default:
           status = 'dont-care';
@@ -399,63 +397,34 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
-  // Create a ref to store pending stream completion promises
-  const pendingStreamDoneRef = useRef<((eventType: string) => void) | null>(null);
-
-  // Wait for real stream/done event from data channel
-  const waitForRealDone = useCallback((timeout = 1200): Promise<void> => {
-    return new Promise((resolve) => {
-      let resolved = false;
-      
-      // If stream is already not streaming, resolve immediately
-      if (streamingState !== 'streaming') {
-        console.log('Stream already finished, resolving immediately');
-        resolve();
-        return;
-      }
-      
-      const tid = setTimeout(() => {
-        if (!resolved) {
-          console.warn('[waitForRealDone] timeout, seguimos...');
-          resolved = true;
-          pendingStreamDoneRef.current = null;
-          resolve(); // fallback
-        }
-      }, timeout);
-
-      // Set up resolver function
-      pendingStreamDoneRef.current = (eventType: string) => {
-        if (!resolved && (eventType === 'stream/done' || eventType === 'stream/error')) {
-          resolved = true;
-          clearTimeout(tid);
-          pendingStreamDoneRef.current = null;
-          console.log(`🔓 Real event received: ${eventType}`);
-          resolve(); // semáforo liberado
-        }
-      };
-
-      // Fallback if no data channel available
-      if (!dataChannelRef.current) {
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            pendingStreamDoneRef.current = null;
-            resolve();
-          }
-        }, 300);
-      }
-    });
+  // Array to store pending stream completion resolvers
+  const pendingDoneResolvers = useRef<(() => void)[]>([]);
+  
+  // Ref to track current streaming state for immediate access
+  const streamingStateRef = useRef(streamingState);
+  
+  // Update ref whenever state changes
+  useEffect(() => {
+    streamingStateRef.current = streamingState;
   }, [streamingState]);
 
-  const cancelCurrentStream = useCallback(async (): Promise<void> => {
-    if (!webSocketRef.current || !streamId || !sessionId || cancellingRef.current) {
-      console.log('No active stream to cancel or already cancelling');
-      return;
+  // Wait for real stream/done event - simplified and robust
+  const waitForRealDone = useCallback((): Promise<void> => {
+    // If already not streaming, resolve immediately
+    if (streamingStateRef.current !== 'streaming') {
+      console.log('Stream already finished, resolving immediately');
+      return Promise.resolve();
     }
 
-    // Check if stream is actually still streaming
-    if (streamingState !== 'streaming') {
-      console.log('Stream already finished, no cancellation needed');
+    return new Promise(resolve => {
+      pendingDoneResolvers.current.push(resolve);
+    });
+  }, []);
+
+  const cancelCurrentStream = useCallback(async (): Promise<void> => {
+    if (!webSocketRef.current || !streamId || !sessionId || 
+        cancellingRef.current || streamingState !== 'streaming') {
+      console.log('[cancel] No hay stream activo; omite.');
       return;
     }
 
