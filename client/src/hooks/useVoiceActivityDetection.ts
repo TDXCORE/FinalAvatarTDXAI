@@ -174,6 +174,14 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
         recordingChunksRef.current = [];
         mediaRecorderRef.current.start();
         console.log('🎤 BARGE-IN: Recording started for interruption');
+        
+        // Forzar paro tras MAX_RECORDING_MS para barge-in también
+        setTimeout(() => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            console.log('⏰ MAX_RECORDING_MS reached for barge-in – stopping');
+            mediaRecorderRef.current.stop();
+          }
+        }, MAX_RECORDING_MS);
       }
       
       hotFramesRef.current = 0;
@@ -206,6 +214,14 @@ export function useVoiceActivityDetection({ onSpeechEnd, onSpeechStart, isAvatar
           recordingChunksRef.current = [];
           mediaRecorderRef.current.start();
           console.log('🎤 Voice detected - started recording');
+          
+          // Forzar paro tras MAX_RECORDING_MS
+          setTimeout(() => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+              console.log('⏰ MAX_RECORDING_MS reached – stopping');
+              mediaRecorderRef.current.stop();
+            }
+          }, MAX_RECORDING_MS);
         }
         
         hotFramesRef.current = 0;
