@@ -8,6 +8,19 @@ export async function ensureSocketOpen(webSocketRef: React.MutableRefObject<WebS
   }
 }
 
+// Wait for stream ready state
+async function waitForReady(isStreamReadyRef: React.MutableRefObject<boolean>, timeout = 4000): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if (isStreamReadyRef.current) return resolve(true);
+      if (Date.now() - start > timeout) return reject(new Error('ready timeout'));
+      requestAnimationFrame(check);
+    };
+    check();
+  });
+}
+
 export function useWebRTC() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const idleVideoRef = useRef<HTMLVideoElement>(null);
@@ -26,6 +39,7 @@ export function useWebRTC() {
   const [streamId, setStreamId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const streamIdRef = useRef<string | null>(null);
+  const isStreamReadyRef = useRef<boolean>(false);
   const [lastBytesReceived, setLastBytesReceived] = useState(0);
   const [videoIsPlaying, setVideoIsPlaying] = useState(false);
 
@@ -359,6 +373,27 @@ export function useWebRTC() {
           case 'delete-stream':
             console.log('Stream deleted from D-ID');
             break;
+            
+          case 'stream/ready':
+            console.log('Stream ready event received from WebSocket');
+            streamIdRef.current = data.streamId || streamId;
+            isStreamReadyRef.current = true;
+            setIsStreamReady(true);
+            break;
+            
+          case 'stream/started':
+            console.log('Stream started from WebSocket');
+            isStreamReadyRef.current = false;
+            setIsStreamReady(false);
+            break;
+            
+          case 'stream/done':
+          case 'stream/stopped':
+          case 'stream/error':
+            console.log('Stream finished from WebSocket:', data.messageType);
+            isStreamReadyRef.current = true;
+            setIsStreamReady(true);
+            break;
         }
       };
 
@@ -425,7 +460,7 @@ export function useWebRTC() {
       return;
     }
 
-    // Clean previous stream and request new init-stream
+    // Clean previous stream and wait for new ready state
     if (streamIdRef.current) {
       console.log('🔒 Cleaning previous stream:', streamIdRef.current);
       const deleteMessage = {
@@ -438,43 +473,14 @@ export function useWebRTC() {
       sendMessage(webSocketRef.current, deleteMessage);
       streamIdRef.current = null;
       setStreamId(null);
+      isStreamReadyRef.current = false;
       setIsStreamReady(false);
       
-      // Request new init-stream
-      const initStreamMessage = {
-        type: 'init-stream',
-        payload: {
-          source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
-          voice_id: 'VJDM6h2UlTvT5qgGHZPj',
-          voice: {
-            type: 'voice_id',
-            voice_id: 'VJDM6h2UlTvT5qgGHZPj',
-            voice_config: {
-              pitch: 1,
-              speed: 1.2,
-              volume: 1
-            }
-          },
-          config: {
-            stream_warmup: true,
-            stitch: true,
-            fluent: true
-          },
-          driver_id: 'e3nbserss8',
-          presenter_type: 'clip'
-        }
-      };
-      sendMessage(webSocketRef.current, initStreamMessage);
-      
-      // Wait for new stream to be initialized with proper ID
-      let retries = 10;
-      while (!streamId && retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retries--;
-      }
-      
-      if (!streamId) {
-        console.error('❌ Failed to get new streamId after cleanup');
+      try {
+        await waitForReady(isStreamReadyRef);
+        console.log('✅ New stream ready after cleanup');
+      } catch (error) {
+        console.error('❌ Timeout waiting for stream ready');
         return;
       }
     }
@@ -487,8 +493,11 @@ export function useWebRTC() {
       return;
     }
     
-    // Wait for proper stream/ready event instead of forcing it
-    // Removed manual setIsStreamReady(true) - only set by actual stream/ready events
+    // Check if stream is ready before sending
+    if (!isStreamReadyRef.current) {
+      console.warn('⏳ Stream busy, cannot send text');
+      return;
+    }
 
     const streamMessage = {
       type: 'stream-text',
