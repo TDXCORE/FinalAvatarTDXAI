@@ -382,10 +382,32 @@ export function useWebRTC() {
     console.log('Text message sent to D-ID');
   }, [streamId, sessionId]);
 
+  const cancelCurrentStream = useCallback(() => {
+    if (!webSocketRef.current || !streamId || !sessionId) {
+      console.log('No active stream to cancel');
+      return;
+    }
+
+    console.log('🗑️ Cancelling current D-ID stream');
+    
+    const deleteMessage = {
+      type: 'delete-stream',
+      payload: {
+        session_id: sessionId,
+        stream_id: streamId
+      }
+    };
+    
+    sendMessage(webSocketRef.current, deleteMessage);
+    setStreamingState('empty');
+    setStreamEvent('cancelled');
+  }, [streamId, sessionId]);
+
   return {
     connect,
     disconnect,
     sendStreamText,
+    cancelCurrentStream,
     connectionState,
     iceConnectionState,
     iceGatheringState,
@@ -394,6 +416,7 @@ export function useWebRTC() {
     streamEvent,
     isStreamReady,
     videoRef,
-    idleVideoRef
+    idleVideoRef,
+    currentStreamId: streamId
   };
 }

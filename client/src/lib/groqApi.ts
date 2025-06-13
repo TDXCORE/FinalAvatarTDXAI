@@ -39,7 +39,8 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
         messages: messages,
         temperature: 0.7,
         max_tokens: 150
-      })
+      }),
+      signal
     });
 
     console.log('Groq LLM Response status:', response.status);

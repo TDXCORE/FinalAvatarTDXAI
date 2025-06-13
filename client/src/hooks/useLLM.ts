@@ -25,7 +25,7 @@ export function useLLM({ onResponse }: UseLLMProps) {
       if (!controller.signal.aborted) {
         onResponse(response);
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('🛑 LLM request aborted');
         return;

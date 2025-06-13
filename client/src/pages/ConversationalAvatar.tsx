@@ -26,6 +26,7 @@ export default function ConversationalAvatar() {
     connect: connectWebRTC,
     disconnect: disconnectWebRTC,
     sendStreamText,
+    cancelCurrentStream,
     connectionState,
     iceConnectionState,
     iceGatheringState,
@@ -34,7 +35,8 @@ export default function ConversationalAvatar() {
     streamEvent,
     isStreamReady,
     videoRef,
-    idleVideoRef
+    idleVideoRef,
+    currentStreamId
   } = useWebRTC();
 
   const {
@@ -52,7 +54,7 @@ export default function ConversationalAvatar() {
     }
   });
 
-  const { sendMessage: sendToLLM } = useLLM({
+  const { sendMessage: sendToLLM, abortCurrentRequest } = useLLM({
     onResponse: (response) => {
       addConversationMessage('assistant', response);
       if (apiConfig) {
