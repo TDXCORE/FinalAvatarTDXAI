@@ -185,6 +185,7 @@ export function useWebRTC() {
         case 'stream/done':
           status = 'done';
           setStreamingState('empty'); // Update state immediately
+          streamingStateRef.current = 'empty';
           console.log('🔄 Stream state updated to empty via stream/done');
           // Libera promesas que esperaban el 'done'
           pendingDoneResolvers.current.forEach(r => r());
@@ -417,7 +418,12 @@ export function useWebRTC() {
     }
 
     if (!webSocketRef.current || !streamId || !sessionId) {
-      console.error('D-ID connection not ready');
+      console.error('D-ID connection not ready', {
+        hasWebSocket: !!webSocketRef.current,
+        streamId,
+        sessionId,
+        wsReadyState: webSocketRef.current?.readyState
+      });
       pendingMsgRef.current = text; // Sobrescribe anterior
       console.log('📦 Message queued (latest wins):', text.substring(0, 50) + '...');
       return;
