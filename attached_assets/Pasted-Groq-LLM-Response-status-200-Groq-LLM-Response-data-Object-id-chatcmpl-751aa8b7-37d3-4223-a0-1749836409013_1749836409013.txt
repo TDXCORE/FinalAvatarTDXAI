@@ -1,0 +1,66 @@
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-751aa8b7-37d3-4223-a023-f44e7ed8d021", object: "chat.completion", created: 1749836367, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Estoy bien, gracias. ¿En qué puedo ayudarte hoy?
+Text message sent to D-ID
+chat/partial
+[STREAM-started] state updated to: streaming
+stream/started
+forcing stream/ready
+chat/answer
+🔄 Stream state updated to empty via stream/done
+stream/done
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_aONYBRwjRKxWXBGgKMbt5$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🎬 Video paused after grace period to prevent resume
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_aONYBRwjRKxWXBGgKMbt5$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(4)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-3966c927-d1d0-4cde-bcb4-01afe575edbe", object: "chat.completion", created: 1749836382, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: La historia universal larga abarca desde la formación del universo hasta la actualidad, cubriendo miles de millones de años. ¿Quieres explorar una época en particular, como la prehistoria o la edad moderna?
+Text message sent to D-ID
+[STREAM-started] state updated to: streaming
+stream/started
+chat/partial
+chat/answer
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_aONYBRwjRKxWXBGgKMbt5$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Video tracks found: 1
+[CLEAR-VIDEO] Single track, pausing to prevent overlap
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🎬 Video paused after grace period to prevent resume
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_aONYBRwjRKxWXBGgKMbt5$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(6)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-fa400f99-fa1c-4ac3-b9f0-18340faaf7d4", object: "chat.completion", created: 1749836386, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: El caramelo es un dulce clásico que se remonta a la Edad Media, cuando se hacía cociendo azúcar y crema. ¿Te gustan los caramelos?
+Text message sent to D-ID
+chat/partial
+chat/answer
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking

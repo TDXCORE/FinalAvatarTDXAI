@@ -262,9 +262,22 @@ export function useWebRTC() {
           currentRemoteStream.current!.removeTrack(track);
         });
       } else if (trackCount === 1) {
-        // Si solo hay una pista, pausar para evitar overlapping
-        console.log('[CLEAR-VIDEO] Single track, pausing to prevent overlap');
-        videoRef.current.pause();
+        // Si solo hay una pista, desconectar temporalmente srcObject
+        console.log('[CLEAR-VIDEO] Single track, temporarily disconnecting srcObject');
+        
+        // Guardar referencia del stream actual
+        const currentStream = videoRef.current.srcObject as MediaStream;
+        
+        // Desconectar temporalmente para evitar overlapping
+        videoRef.current.srcObject = null;
+        
+        // Reconectar cuando el nuevo clip esté completamente listo
+        setTimeout(() => {
+          if (streamingStateRef.current !== 'streaming' && currentStream) {
+            videoRef.current!.srcObject = currentStream;
+            console.log('[CLEAR-VIDEO] srcObject reconnected after interruption');
+          }
+        }, 400);
       }
     }
   }, [videoRef]);
