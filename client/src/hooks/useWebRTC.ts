@@ -9,7 +9,7 @@ export async function ensureSocketOpen(webSocketRef: React.MutableRefObject<WebS
 }
 
 // Wait for stream ready state
-async function waitForReady(isStreamReadyRef: React.MutableRefObject<boolean>, timeout = 6000): Promise<boolean> {
+async function waitForReady(isStreamReadyRef: React.MutableRefObject<boolean>, timeout = 4000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
@@ -51,21 +51,28 @@ export function useWebRTC() {
 
   const onIceCandidate = useCallback((event: RTCPeerConnectionIceEvent) => {
     console.log('onIceCandidate', event);
-    if (event.candidate && webSocketRef.current) {
+    if (event.candidate) {
       const { candidate, sdpMid, sdpMLineIndex } = event.candidate;
       sendMessage(webSocketRef.current, {
         type: 'ice',
         payload: {
           session_id: sessionId,
-          stream_id: streamIdRef.current,
           candidate,
           sdpMid,
           sdpMLineIndex,
-          presenter_type: 'clip'
+        },
+      });
+    } else {
+      sendMessage(webSocketRef.current, {
+        type: 'ice',
+        payload: {
+          stream_id: streamId,
+          session_id: sessionId,
+          presenter_type: 'clip',
         },
       });
     }
-  }, [sessionId]);
+  }, [sessionId, streamId]);
 
   const onIceConnectionStateChange = useCallback(() => {
     if (peerConnectionRef.current) {
@@ -209,8 +216,6 @@ export function useWebRTC() {
 
       if (status === 'ready') {
         console.log('stream/ready');
-        console.log('✅ New stream ready after cleanup');
-        // streamId should already be updated from WebSocket init-stream response
         isStreamReadyRef.current = true;
         setIsStreamReady(true);
         setStreamEvent('ready');
@@ -308,6 +313,15 @@ export function useWebRTC() {
       ws.onerror = (error) => {
         console.error('🔌 D-ID WebSocket error:', error);
       };
+      
+      // Keep connection alive with periodic heartbeat
+      const heartbeatInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000); // Send ping every 30 seconds
 
       // Initialize stream
       const initStreamMessage = {
@@ -323,7 +337,6 @@ export function useWebRTC() {
       // Handle WebSocket messages
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
-        console.log('📨 D-ID WebSocket message received:', data.messageType, data);
         
         switch (data.messageType) {
           case 'init-stream':
@@ -332,9 +345,9 @@ export function useWebRTC() {
             streamIdRef.current = newStreamId;
             setSessionId(newSessionId);
             console.log('D-ID stream initialized:', newStreamId, newSessionId);
-            // Don't set ready state here - wait for stream/ready from data channel
-            isStreamReadyRef.current = false;
-            setIsStreamReady(false);
+            // Set ready state immediately after getting new streamId
+            isStreamReadyRef.current = true;
+            setIsStreamReady(true);
             
             try {
               const sessionClientAnswer = await createPeerConnection(offer, iceServers);
@@ -366,10 +379,7 @@ export function useWebRTC() {
             
           case 'stream/ready':
             console.log('Stream ready event received from WebSocket');
-            if (data.streamId) {
-              streamIdRef.current = data.streamId;
-              setStreamId(data.streamId);
-            }
+            streamIdRef.current = data.streamId || streamId;
             isStreamReadyRef.current = true;
             setIsStreamReady(true);
             break;
@@ -469,12 +479,26 @@ export function useWebRTC() {
       isStreamReadyRef.current = false;
       setIsStreamReady(false);
 
-      // NUEVO: solicita stream nuevo con session_id requerido
+      // NUEVO: solicita stream nuevo
       const initStreamMessage = {
         type: 'init-stream',
         payload: {
-          session_id: sessionId,
-          presenter_id: 'v2_public_alex@qcvo4gupoy',
+          source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
+          voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+          voice: {
+            type: 'voice_id',
+            voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+            voice_config: {
+              pitch: 1,
+              speed: 1.2,
+              volume: 1
+            }
+          },
+          config: {
+            stream_warmup: true,
+            stitch: true,
+            fluent: true
+          },
           driver_id: 'e3nbserss8',
           presenter_type: 'clip'
         }
@@ -493,12 +517,10 @@ export function useWebRTC() {
     console.log('🎯 Sending text to D-ID avatar:', text);
     
     // Ensure we have a valid streamId before proceeding
-    if (!streamIdRef.current) {
+    if (!streamId) {
       console.error('❌ No streamId available - cannot send text');
       return;
     }
-    
-    console.log('🔑 Using streamId:', streamIdRef.current, 'sessionId:', sessionId);
     
     // Check if stream is ready before sending
     if (!isStreamReadyRef.current) {
@@ -525,7 +547,7 @@ export function useWebRTC() {
           color: '#FFFFFF'
         },
         session_id: sessionId,
-        stream_id: streamIdRef.current,
+        stream_id: streamId,
         presenter_type: 'clip'
       }
     };

@@ -23,32 +23,13 @@ export async function loadApiConfig(): Promise<ApiConfig> {
       };
     }
     
-    // Try server environment variables (for secrets)
-    try {
-      const configResponse = await fetch('/api/config');
-      if (configResponse.ok) {
-        const serverConfig = await configResponse.json();
-        if (serverConfig.DID_API_KEY) {
-          return {
-            key: serverConfig.DID_API_KEY,
-            url: 'https://api.d-id.com',
-            websocketUrl: 'wss://ws-api.d-id.com',
-            service: 'clips',
-            elevenlabsKey: serverConfig.ELEVENLABS_API_KEY || ''
-          };
-        }
-      }
-    } catch (error) {
-      console.log('Server config not available, trying fallback');
-    }
-    
     // Fallback to api.json file
-    const jsonResponse = await fetch('/api.json');
-    if (!jsonResponse.ok) {
+    const response = await fetch('/api.json');
+    if (!response.ok) {
       throw new Error('Failed to load API configuration');
     }
     
-    const config = await jsonResponse.json();
+    const config = await response.json();
     
     if (config.key === '🤫' || config.key === 'TU_D_ID_API_KEY_AQUI') {
       throw new Error('Please configure your API keys in .env file or api.json');

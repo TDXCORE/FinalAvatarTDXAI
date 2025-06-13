@@ -3,14 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // API config endpoint to expose environment secrets
-  app.get("/api/config", (req, res) => {
-    res.json({
-      DID_API_KEY: process.env.DID_API_KEY,
-      GROQ_API_KEY: process.env.GROQ_API_KEY,
-      ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY
-    });
-  });
+  // put application routes here
+  // prefix all routes with /api
+
+  // use storage to perform CRUD operations on the storage interface
+  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
 
   const httpServer = createServer(app);
 
