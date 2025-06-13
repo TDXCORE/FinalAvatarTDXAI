@@ -572,7 +572,7 @@ export function useWebRTC() {
     isStreamReady,
     videoRef,
     idleVideoRef,
-    currentStreamId: streamId,
+    streamId,
     cancellingRef,
     streamingStateRef,
     pendingMessagesCount: pendingMsgRef.current ? 1 : 0
