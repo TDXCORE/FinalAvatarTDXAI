@@ -186,6 +186,49 @@ export function useWebRTC() {
           break;
         case 'stream/ready':
           status = 'ready';
+          // Process any queued messages when stream becomes ready
+          if (pendingMessagesRef.current.length > 0) {
+            console.log('🚀 Processing', pendingMessagesRef.current.length, 'queued messages');
+            const queuedMessages = [...pendingMessagesRef.current];
+            pendingMessagesRef.current = []; // Clear queue
+            
+            // Send the first queued message (usually the latest response after interrupt)
+            if (queuedMessages.length > 0) {
+              const nextMessage = queuedMessages[queuedMessages.length - 1]; // Get latest message
+              console.log('📤 Sending queued message:', nextMessage.substring(0, 50) + '...');
+              
+              // Use setTimeout to ensure stream is fully ready
+              setTimeout(() => {
+                if (webSocketRef.current && streamId && sessionId) {
+                  const streamMessage = {
+                    type: 'stream-text',
+                    payload: {
+                      script: {
+                        type: 'text',
+                        input: nextMessage,
+                        provider: {
+                          type: 'elevenlabs',
+                          voice_id: 'ucWwAruuGtBeHfnAaKcJ'
+                        },
+                        ssml: true
+                      },
+                      config: {
+                        stitch: true
+                      },
+                      background: {
+                        color: '#FFFFFF'
+                      },
+                      session_id: sessionId,
+                      stream_id: streamId,
+                      presenter_type: 'clip'
+                    }
+                  };
+                  sendMessage(webSocketRef.current, streamMessage);
+                  console.log('✅ Queued message sent to D-ID');
+                }
+              }, 100);
+            }
+          }
           break;
         case 'stream/error':
           status = 'error';
@@ -374,6 +417,9 @@ export function useWebRTC() {
 
     if (!webSocketRef.current || !streamId || !sessionId) {
       console.error('D-ID connection not ready');
+      // Queue the message for when connection is restored
+      pendingMessagesRef.current.push(text);
+      console.log('📦 Message queued for when D-ID reconnects:', text.substring(0, 50) + '...');
       return;
     }
 
@@ -528,6 +574,7 @@ export function useWebRTC() {
     idleVideoRef,
     currentStreamId: streamId,
     cancellingRef,
-    streamingStateRef
+    streamingStateRef,
+    pendingMessagesCount: pendingMessagesRef.current.length
   };
 }
