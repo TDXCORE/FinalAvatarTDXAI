@@ -20,7 +20,7 @@ export async function connectToGroqSTT(model: string = 'whisper-large-v3'): Prom
   });
 }
 
-export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile', abortController?: AbortController) {
+export async function sendToGroqLLM(messages: Array<{role: string, content: string}>, model: string = 'llama-3.3-70b-versatile') {
   try {
     if (!GROQ_API_KEY) {
       throw new Error('GROQ API key not configured');
@@ -38,12 +38,8 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
         model: model,
         messages: messages,
         temperature: 0.7,
-        max_tokens: 120,  // Reduced for faster responses
-        top_p: 0.9,       // Optimized for conversation
-        stream: false,    // Keep simple for now
-        stop: ["\n\n", "Usuario:", "User:"] // Stop tokens for conversation
-      }),
-      signal: abortController?.signal
+        max_tokens: 150
+      })
     });
 
     console.log('Groq LLM Response status:', response.status);
@@ -55,10 +51,8 @@ export async function sendToGroqLLM(messages: Array<{role: string, content: stri
     }
 
     const data = await response.json();
-    console.log('🧠 Groq LLM Full Response:', data);
-    const content = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
-    console.log('🧠 Extracted content:', content);
-    return content;
+    console.log('Groq LLM Response data:', data);
+    return data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
   } catch (error) {
     console.error('Groq LLM API error:', error);
     throw error;
