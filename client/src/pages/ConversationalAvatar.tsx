@@ -247,6 +247,8 @@ export default function ConversationalAvatar() {
 
   const handleManualSend = (message: string) => {
     if (message.trim() && isConnected) {
+      console.log('[streamingState]', streamingState, 'isBotSpeaking:', isBotSpeaking);
+      
       // Check if bot is currently speaking and interrupt if needed
       if (isBotSpeaking) {
         console.log('🚨 Manual interrupt detected while bot speaking');

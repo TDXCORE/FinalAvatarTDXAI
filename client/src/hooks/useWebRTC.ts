@@ -164,15 +164,18 @@ export function useWebRTC() {
       switch (event) {
         case 'stream/started':
           status = 'started';
+          setStreamingState('streaming');
           break;
         case 'stream/done':
           status = 'done';
+          setStreamingState('empty');
           break;
         case 'stream/ready':
           status = 'ready';
           break;
         case 'stream/error':
           status = 'error';
+          setStreamingState('empty');
           break;
         default:
           status = 'dont-care';

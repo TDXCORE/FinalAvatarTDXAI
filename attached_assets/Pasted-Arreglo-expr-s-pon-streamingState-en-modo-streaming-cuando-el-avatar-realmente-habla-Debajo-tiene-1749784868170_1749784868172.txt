@@ -1,0 +1,106 @@
+Arreglo exprés: pon streamingState en modo ‘streaming’ cuando el avatar realmente habla
+Debajo tienes —
+
+Qué cambia y por qué.
+
+Parche “copy-paste” (git diff) para client/src/hooks/useWebRTC.ts.
+
+Mini-checklist para comprobar que isBotSpeaking ahora sí funciona.
+
+1. Qué cambia
+Evento D-ID	Antes (streamingState)	Después
+stream/started	'empty' (incorrecto)	'streaming'
+stream/done	'empty' (no cambia)	vuelve a 'empty'
+stream/error o cancelCurrentStream()	se quedaba como estuviera	siempre 'empty'
+
+Con eso, la condición:
+
+ts
+Copiar
+const isBotSpeaking = streamingState === 'streaming';
+se vuelve verídica y tu VAD podrá lanzar la interrupción sólo cuando corresponde.
+
+2. Parche (diff)
+diff
+Copiar
+diff --git a/client/src/hooks/useWebRTC.ts b/client/src/hooks/useWebRTC.ts
+@@
+-  // Estado local
+-  const [streamingState, setStreamingState] = useState<'empty' | 'streaming'>('empty');
++  // Estado local
++  const [streamingState, setStreamingState] = useState<'empty'|'streaming'>('empty');
+ 
+   /* …código… */
+ 
+   // 👉 handler de eventos recibidos desde el socket con D-ID
+   const onStreamEvent = useCallback((event: string) => {
+     let status: 'dont-care' | 'started' | 'done' = 'dont-care';
+ 
+     switch (event) {
+       case 'stream/started':
+-        status = 'started';
++        status = 'started';
++        setStreamingState('streaming');      //  ⬅️  NUEVO
+         break;
+       case 'stream/done':
+-        status = 'done';
++        status = 'done';
++        setStreamingState('empty');          //  ⬅️  NUEVO
+         break;
+       case 'stream/error':
++        setStreamingState('empty');          //  ⬅️  por si acaso
+         break;
+       default:
+         break;
+     }
+ 
+     setStreamEvent(status === 'dont-care' ? event : status);
+   }, []);
+ 
+   /* …código… */
+ 
+   // 👉 cancelación manual / por VAD
+   const cancelCurrentStream = useCallback(async () => {
+     if (!currentStreamIdRef.current) return;
+     try {
+       await fetch(`${DID_API}/streams/${currentStreamIdRef.current}`, {
+         method: 'DELETE',
+         headers: { Authorization: `Bearer ${apiKey}` },
+       });
+     } catch (err) {
+       console.error('Error cancelling stream', err);
+     } finally {
++      setStreamingState('empty');            // ⬅️  asegúrate de resetear
+       currentStreamIdRef.current = null;
+     }
+   }, [apiKey]);
+Tip: pon console.log('[streamingState]', streamingState) en tu componente para ver la transición empty → streaming → empty en la consola.
+
+3. Mini-checklist de validación
+Log de estado
+
+Envía texto.
+
+Deberías ver:
+
+csharp
+Copiar
+[streamingState] empty
+[streamingState] streaming   ← en stream/started
+[streamingState] empty       ← en stream/done o interrupción
+Interrumpir manualmente (click o tecla)
+
+La consola debe mostrar 🚨 Manual interrupt… solo cuando el estado sea 'streaming'.
+
+Re-entrada
+
+Después de la interrupción, escribe otro mensaje: se debe crear un stream nuevo sin errores.
+
+Con este ajuste isBotSpeaking reflejará la realidad y tu flujo de interrupción volverá a arrancar el ciclo correctamente. ¡Listo el pollo!
+
+
+
+
+
+
+
