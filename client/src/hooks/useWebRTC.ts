@@ -351,6 +351,11 @@ export function useWebRTC() {
   }, [sessionId, streamId, stopAllStreams, closePC]);
 
   const sendStreamText = useCallback((text: string) => {
+    if (cancellingRef.current || streamingState !== 'empty') {
+      console.warn('Stream todavía cancelándose o no vacío, omite envío.');
+      return;
+    }
+
     if (!webSocketRef.current || !streamId || !sessionId) {
       console.error('D-ID connection not ready');
       return;
@@ -403,8 +408,25 @@ export function useWebRTC() {
     }
 
     cancellingRef.current = true;
-    setStreamingState('empty'); // Set to empty immediately
     console.log('🗑️ Cancelling current D-ID stream');
+
+    // ⏹️ 1) Detén audio + video YA mismo
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.getReceivers()
+        .forEach(r => r.track?.stop());
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    // 🔄 Limpia el elemento <video> para que no quede congelado
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    if (idleVideoRef.current) {
+      idleVideoRef.current.srcObject = null;
+    }
+
+    setStreamingState('empty'); // Set to empty after stopping tracks
     
     try {
       const deleteMessage = {
@@ -442,6 +464,7 @@ export function useWebRTC() {
     isStreamReady,
     videoRef,
     idleVideoRef,
-    currentStreamId: streamId
+    currentStreamId: streamId,
+    cancellingRef
   };
 }

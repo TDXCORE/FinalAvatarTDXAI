@@ -1,0 +1,104 @@
+Aún no se corta: ¿qué falta?
+Los registros muestran que la petición DELETE sí se envía y se confirma, pero el vídeo sigue porque el antiguo RTCPeerConnection permanece vivo.
+D-ID detiene el stream en su backend, sin embargo el track de video/audio ya llegó a tu navegador y la etiqueta <video> lo sigue reproduciendo hasta recibir RTCPeerConnection.close() o un track.stop() local.
+
+1. Causa raíz
+DELETE /streams/{id} solo corta la ingestión en D-ID.
+
+El peerConnection creado al iniciar el stream no se cierra.
+
+El MediaStreamTrack remoto sigue activo, aunque se quede sin paquetes nuevos; el navegador no lo detiene de inmediato.
+
+Por eso ves stopping video streams / stopping peer connection recién al final del log, no cuando se interrumpe.
+
+2. Arreglo minimalista
+Al finalizar cancelCurrentStream():
+
+Haz stop() a todos los tracks remotos.
+
+Cierra la RTCPeerConnection.
+
+Limpia la <video> (srcObject = null).
+
+Esto garantiza que el avatar desaparezca en cuanto llega la interrupción, sin esperar eventos asíncronos.
+
+Diff para useWebRTC.ts
+diff
+Copiar
+@@
+   finally {
+     currentStreamIdRef.current = null;
++    // 1️⃣  Detén todos los tracks de entrada
++    if (peerConnectionRef.current) {
++      peerConnectionRef.current.getReceivers()
++        .forEach(r => r.track && r.track.stop());
++
++      // 2️⃣  Cierra la conexión WebRTC
++      peerConnectionRef.current.close();
++      peerConnectionRef.current = null;
++    }
++
++    // 3️⃣  Limpia el <video> para evitar el último frame congelado
++    if (remoteVideoRef.current) {
++      remoteVideoRef.current.srcObject = null;
++    }
++
+     setStreamingState('empty');
+     cancellingRef.current = false;
+   }
+ }
+(Ajusta peerConnectionRef y remoteVideoRef a los nombres que uses.)
+
+3. Bloquea todas las nuevas peticiones mientras cancelas
+Asegúrate de que cualquier función que pueda iniciar un stream revise:
+
+ts
+Copiar
+if (streamingState !== 'empty') return;   // o lanza en cola
+Así evitas que un stream nuevo se inicie en los 200 ms en que cierras la conexión anterior.
+
+4. Eliminar los falsos “mutes” / loops
+Si tu VAD vuelve a disparar onInterrupt() mientras cancellingRef es true, ignóralo:
+
+ts
+Copiar
+if (streamingState === 'cancelling') return;
+5. Check‐list de prueba
+Envías texto → stream/started → <video> aparece.
+
+Durante la reproducción escribes otro texto.
+
+Console: 🚨 Manual interrupt…
+
+El vídeo se pausa / desaparece inmediatamente (tracks detenidos).
+
+stream/done ya no importa: la conexión antigua está muerta.
+
+Nuevo stream arranca sin solaparse.
+
+Resultado esperado
+bash
+Copiar
+stream/started
+[streamingState] streaming
+🚨 interrupt
+🗑️ Cancelling current D-ID stream
+💥 Stopped tracks + closed peer
+[streamingState] empty         ← avatar ya callado
+stream/done (puede llegar tarde, se ignora)
+stream/started (nuevo)         ← sin overlap
+Con el cierre explícito del RTCPeerConnection el avatar sí se detendrá en el instante de la interrupción.
+
+
+
+
+
+
+
+
+
+
+Herramientas
+
+
+

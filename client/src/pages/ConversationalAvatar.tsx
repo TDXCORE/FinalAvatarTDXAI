@@ -36,7 +36,8 @@ export default function ConversationalAvatar() {
     isStreamReady,
     videoRef,
     idleVideoRef,
-    currentStreamId
+    currentStreamId,
+    cancellingRef
   } = useWebRTC();
 
   const {
@@ -68,12 +69,14 @@ export default function ConversationalAvatar() {
 
   // Interrupt handler
   const handleInterrupt = useCallback(async () => {
+    if (streamingState !== 'streaming') return;
+    
     console.log('🚨 Handling user interrupt');
     
-    // 1. Abort current LLM request
+    // 1. Abort current LLM request immediately
     abortCurrentRequest();
     
-    // 2. Cancel current D-ID stream and wait for confirmation
+    // 2. Cancel current D-ID stream and wait for tracks to stop
     await cancelCurrentStream();
     
     // 3. Reset latency tracking
@@ -81,7 +84,7 @@ export default function ConversationalAvatar() {
     setLatencyStart(null);
     
     // Note: Removed confusing system message for cleaner UX
-  }, [abortCurrentRequest, cancelCurrentStream]);
+  }, [abortCurrentRequest, cancelCurrentStream, streamingState]);
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({

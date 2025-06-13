@@ -1,0 +1,106 @@
+ Tu diagnóstico es correcto: mientras el RTCPeerConnection siga vivo, el <video> continúa mostrando el último frame aunque D-ID ya haya recibido el DELETE.
+Aquí tienes un parche exacto y algunas recomendaciones extra para impedir nuevas carreras.
+
+1. Diff – client/src/hooks/useWebRTC.ts
+diff
+Copiar
+@@
+-  const cancelCurrentStream = useCallback(async (): Promise<void> => {
+-    if (!currentStreamIdRef.current || cancellingRef.current) return;
+-    cancellingRef.current = true;
++  const cancelCurrentStream = useCallback(async (): Promise<void> => {
++    if (!currentStreamIdRef.current || cancellingRef.current) return;
++    cancellingRef.current = true;
++
++    // ⏹️ 1) Detén audio + video YA mismo
++    if (peerConnectionRef.current) {
++      peerConnectionRef.current.getReceivers()
++        .forEach(r => r.track?.stop());
++      peerConnectionRef.current.close();
++      peerConnectionRef.current = null;
++    }
++
++    // 🔄 Limpia el elemento <video> para que no quede congelado
++    if (remoteVideoRef.current) {
++      remoteVideoRef.current.srcObject = null;
++    }
+ 
+-    try {
++    try {
+       await fetch(`${DID_API}/streams/${currentStreamIdRef.current}`, {
+         method: 'DELETE',
+         headers: { Authorization: `Bearer ${apiKey}` },
+       });
+-      await waitForStreamDone();             // 🕒 espera confirmación
++      await waitForStreamDone();             // 🕒 aún esperamos para no saturar D-ID
+     } catch (err) {
+       console.error('Error cancelling stream', err);
+     } finally {
+       currentStreamIdRef.current = null;
+       setStreamingState('empty');
+       cancellingRef.current = false;
+     }
+   }, [apiKey]);
+Asegúrate de que peerConnectionRef y remoteVideoRef correspondan a tus refs reales.
+
+2. Diff – client/src/pages/ConversationalAvatar.tsx
+diff
+Copiar
+-  const handleInterrupt = async () => {
+-    if (streamingState !== 'streaming') return;
+-    abortControllerRef.current?.abort?.();          // corta LLM
+-    await cancelCurrentStream();                    // espera cierre
+-    // …procedes con el nuevo mensaje
+-  };
++  const handleInterrupt = async () => {
++    if (streamingState !== 'streaming' || cancellingRef.current) return;
++    abortControllerRef.current?.abort?.();          // corta LLM inmediato
++    await cancelCurrentStream();                    // conexión fuera
++    // ahora sí envías el nuevo texto (o dejas que VAD dispare STT)
++  };
+3. Bloqueo en el envío
+En cualquier función que cree un nuevo stream (p. ej. sendStreamText()):
+
+ts
+Copiar
+if (cancellingRef.current || streamingState !== 'empty') {
+  console.warn('Stream todavía cancelándose, omite envío.');
+  return;
+}
+4. Orden de eventos esperados
+bash
+Copiar
+stream/started           (avatar habla)
+INTERRUPT
+  ↳ abort LLM            (instantáneo)
+  ↳ stop tracks + close PC
+  ↳ DELETE /streams/{id}
+[video desaparece]        (t = +0 – 50 ms)
+stream/done (llega tarde, ignorado)
+[VAD sigue capturando]    (nuevo texto se detecta)
+stream/started (nuevo)    (sin solaparse)
+5. Checklist rápido
+Visual: el avatar se congela < 100 ms tras la interrupción.
+
+Consola: no hay duplicates de stream/started sin un stream/done previo.
+
+Spameo: varios INT seguidos no arrojan warnings de InvalidStateError (el flag lo evita).
+
+Uso de CPU: getReceivers().forEach(track.stop()) libera el decodificador inmediatamente.
+
+Con esto el ciclo queda limpio: se cierra la conexión WebRTC en cuanto detectas la interrupción y el vídeo se esfuma al instante, eliminando cualquier superposición entre el stream viejo y el nuevo.
+
+
+
+
+
+
+
+
+
+
+Herramientas
+
+
+
+ChatGP
