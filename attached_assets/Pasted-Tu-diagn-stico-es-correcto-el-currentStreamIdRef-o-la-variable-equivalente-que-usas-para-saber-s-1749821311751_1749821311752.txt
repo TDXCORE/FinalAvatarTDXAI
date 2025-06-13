@@ -1,0 +1,33 @@
+Tu diagnóstico es correcto: el `currentStreamIdRef` (o la variable equivalente que usas para saber si hay un stream activo) debe volver a llenarse en cuanto obtienes los IDs del nuevo turno; de lo contrario, las siguientes interrupciones quedan bloqueadas por el guard que comprueba “¿hay stream en curso?”.
+
+---
+
+## Pasos precisos para cerrar el bug
+
+| Paso                                                          | Qué cambia                                                                                                                                                                                                                                                                                           | Por qué                                                                                                                                                                  |                                                                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| **1. Asigna el nuevo `streamId` al ref**                      | Dentro del handler donde parseas la respuesta de **POST /streams** o el mensaje `init-stream` del WebSocket:  `ts const { id: newStreamId, sessionId: newSessionId } = data; setStreamId(newStreamId); setSessionId(newSessionId); currentStreamIdRef.current = newStreamId;   // 👈 línea crítica ` | El guard de `handleInterrupt` se basará en este ref para decidir si debe cancelar.                                                                                       |                                                                                                         |
+| **2. Borra el ref sólo después** de enviar el `delete-stream` | Mantén la línea que pone `currentStreamIdRef.current = null;` **en el `finally`** de `cancelCurrentStream`, pero nunca antes.                                                                                                                                                                        | Así garantizas que durante los 120 ms de gracia siga considerándose “hay stream”, evitando cancels repetidos y asegurando que el siguiente POST lo sobrescriba de nuevo. |                                                                                                         |
+| **3. Sincroniza estado y ref (si fueran distintos)**          | Siempre que hagas `setStreamId(x)` haz también `currentStreamIdRef.current = x`. Puedes envolverlo:  \`\`\`ts function updateStreamId(id: string                                                                                                                                                     | null) { setStreamId(id); currentStreamIdRef.current = id; } \`\`\`                                                                                                       | Evitas que un ref se desfas-e del estado React cuando algún cambio se haga desde otro punto del código. |
+| **4. Verifica que sólo el delete pone el streamId a `null`**  | En el flujo normal (stream/done sin interrupción) **no** borres el ref; eso lo decide D-ID. Déjalo nulo sólo cuando cancelas tú.                                                                                                                                                                     | Así, si el usuario interrumpe justo al final de una respuesta, el guard aún ve un `streamId` y procede.                                                                  |                                                                                                         |
+
+---
+
+### Checklist rápido de prueba
+
+1. **Interrupción #1**
+
+   * Ves `currentStreamIdRef = strm_ABC` al entrar en `handleInterrupt`.
+   * Después del grace de 120 ms, consola muestra `… ref=null, state='empty'`.
+
+2. **Nuevo POST /streams**
+
+   * Log: `updateStreamId(strm_DEF)`.
+
+3. **Interrupción #2**
+
+   * `[INT-check] streamId: strm_DEF …`
+   * Se ejecuta `cancelCurrentStream` sin salirse del guard.
+   * Se repite el ciclo indefinidamente sin reconexión ni vídeo negro.
+
+Una vez ese ref se sincronice correctamente, tendrás interrupciones ilimitadas tanto por texto como por voz.

@@ -552,15 +552,14 @@ export function useWebRTC() {
     } catch (error) {
       console.error('Error during WebSocket delete:', error);
     } finally {
-      // Reset solo IDs de stream, mantén conexión WebRTC
-      setStreamId(null);
-      setSessionId(null);
+      // Mantener streamId y sessionId para permitir futuras interrupciones
+      // Solo resetear estado de streaming
       setStreamingState('cancelling');
       streamingStateRef.current = 'cancelling';
       cancellingRef.current = false;
       
       console.log('🔄 Stream cancellation complete, RTCPeerConnection maintained');
-      console.log('[CANCEL-finally]', 'cancellingRef.current:', cancellingRef.current, 'state:', streamingStateRef.current);
+      console.log('[CANCEL-finally]', 'cancellingRef.current:', cancellingRef.current, 'state:', streamingStateRef.current, 'streamId preserved:', streamId);
     }
   }, [streamId, sessionId]);
 

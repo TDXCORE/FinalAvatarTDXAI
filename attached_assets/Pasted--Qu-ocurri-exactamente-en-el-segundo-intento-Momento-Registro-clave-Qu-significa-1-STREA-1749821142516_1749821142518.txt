@@ -1,0 +1,61 @@
+🕵️‍♀️ Qué ocurrió exactamente en el segundo intento
+Momento	Registro clave	Qué significa
+(1)	[STREAM-started] state updated to: streaming	El segundo turno se inició y el bot está hablando.
+(2)	🚨 Manual interrupt detected…	El VAD/botón sí invocó handleInterrupt.
+(3)	[INT-check] streamId: null cancellingRef: false	Al entrar en handleInterrupt, currentStreamIdRef.current es null ⇒ tu guard if (!currentStreamIdRef.current) return aborta la cancelación.
+(4)	Bot sigue hablando → al cabo de ~8 s ICE se desconecta y todo se cierra.	
+
+Por qué streamId es null
+Tras la primera interrupción, en el finally de cancelCurrentStream() haces:
+
+ts
+Copiar
+Editar
+currentStreamIdRef.current = null;   // ← se borra
+Cuando envías el nuevo texto, sí recibes del backend el JSON con el streamId, pero nunca lo vuelves a asignar a currentStreamIdRef.current.
+En tus logs no aparece ninguna línea tipo [SET streamId strm_...] después del segundo Text message sent….
+
+Resultado: a partir de ese momento los siguientes handleInterrupt() creen que “no hay stream activo” y se saltan la lógica de cancelación.
+
+🔑 Lo que hay que arreglar (sin tocar nada más)
+Asignar siempre el nuevo ID cuando realizas el POST /streams
+(o cuando recibes el stream/ready, lo que prefieras, pero antes de que el bot empiece a hablar):
+
+ts
+Copiar
+Editar
+const { id: newStreamId, sessionId } = await res.json();
+currentStreamIdRef.current = newStreamId;     // 👈 ESTA línea faltó
+setStreamId(newStreamId);
+setSessionId(sessionId);
+Vaciar el ref sólo después de enviar el delete-stream:
+
+ts
+Copiar
+Editar
+webSocket.send(JSON.stringify({ type: 'delete-stream', streamId: currentStreamIdRef.current }));
+// gracia 120 ms …
+currentStreamIdRef.current = null;            // OK que se borre aquí
+Con eso el guard vuelve a funcionar:
+
+ts
+Copiar
+Editar
+if (!currentStreamIdRef.current || cancellingRef.current) return;  // ahora siempre detecta
+Secuencia esperada tras el fix
+arduino
+Copiar
+Editar
+stream/started   (streamId = strm_ABC123)
+INTERRUPT
+  ↳ delete-stream strm_ABC123
+  ↳ stop tracks
+  ↳ streamId = null
+POST texto nuevo
+  ↳ responde { id: strm_DEF456 }
+  ↳ currentStreamId = strm_DEF456
+stream/started   (nuevo)
+INTERRUPT 2
+  ↳ guard permite cancelar porque streamId ≠ null
+  ↳ flujo se repite sin desconexiones
+Una vez el streamId se vuelva a guardar correctamente, las interrupciones subsecuentes funcionarán de forma indefinida, tanto por voz como por texto.
