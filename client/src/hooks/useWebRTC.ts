@@ -425,7 +425,7 @@ export function useWebRTC() {
       return;
     }
 
-    // Clean previous stream before creating new one
+    // Clean previous stream and request new init-stream
     if (streamIdRef.current) {
       console.log('🔒 Cleaning previous stream:', streamIdRef.current);
       const deleteMessage = {
@@ -437,17 +437,49 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, deleteMessage);
       streamIdRef.current = null;
+      setStreamId(null);
       setIsStreamReady(false);
-      await new Promise(resolve => setTimeout(resolve, 50)); // Micro-delay
+      
+      // Request new init-stream
+      const initStreamMessage = {
+        type: 'init-stream',
+        payload: {
+          source_url: 'https://cloudflare-ipfs.com/ipfs/QmQ6gV8o3LqMzjLHV7ivCEp5CGhmFyNvR4KQJfpfDgj1d6',
+          voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+          voice: {
+            type: 'voice_id',
+            voice_id: 'VJDM6h2UlTvT5qgGHZPj',
+            voice_config: {
+              pitch: 1,
+              speed: 1.2,
+              volume: 1
+            }
+          },
+          config: {
+            stream_warmup: true,
+            stitch: true,
+            fluent: true
+          },
+          driver_id: 'e3nbserss8',
+          presenter_type: 'clip'
+        }
+      };
+      sendMessage(webSocketRef.current, initStreamMessage);
+      
+      // Wait for new stream to be initialized
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     console.log('🎯 Sending text to D-ID avatar:', text);
     
-    // Force stream ready if not already set (after interruptions)
-    if (!isStreamReady) {
-      console.log('🔄 Forcing stream ready state for post-interruption playback');
-      setIsStreamReady(true);
+    // Ensure we have a valid streamId before proceeding
+    if (!streamId) {
+      console.error('❌ No streamId available - cannot send text');
+      return;
     }
+    
+    // Wait for proper stream/ready event instead of forcing it
+    // Removed manual setIsStreamReady(true) - only set by actual stream/ready events
 
     const streamMessage = {
       type: 'stream-text',
@@ -501,8 +533,7 @@ export function useWebRTC() {
             }
           };
           sendMessage(webSocketRef.current, interruptMessage);
-          // Mark as ready immediately to prevent UI blocking
-          setIsStreamReady(true);
+          // Removed manual setIsStreamReady - wait for proper stream/ready event
         }
         
         // Force stop all video streams
@@ -558,7 +589,7 @@ export function useWebRTC() {
       };
       sendMessage(webSocketRef.current, interruptMessage);
       console.log('Stream interrupt sent to D-ID');
-      setIsStreamReady(true); // Desbloquea siguiente clip
+      // Removed manual setIsStreamReady - wait for proper stream/ready event
     }
   }, [sessionId, stopVideo]);
 

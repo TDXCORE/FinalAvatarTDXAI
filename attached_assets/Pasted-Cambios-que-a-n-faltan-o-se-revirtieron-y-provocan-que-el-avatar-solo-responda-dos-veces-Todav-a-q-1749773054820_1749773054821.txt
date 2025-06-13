@@ -1,0 +1,55 @@
+Cambios que aún faltan (o se revirtieron) y provocan que el avatar solo responda dos veces
+Todavía queda un stream-pause
+En useWebRTC.ts, dentro del listener de abortController, se sigue enviando:
+
+ts
+Copiar
+const pauseMessage = { type: 'stream-pause', … }   // :contentReference[oaicite:3]{index=3}
+--► Elimínalo y deja solo stream-interrupt.
+
+Fuerzas isStreamReady = true manualmente
+En sendStreamText() haces:
+
+ts
+Copiar
+if (!isStreamReady) { setIsStreamReady(true); }   // :contentReference[oaicite:4]{index=4}
+Esto oculta el hecho de que el servidor no ha mandado stream/ready.
+--► Quita ese bloque: el flag debe ponerse a true solo cuando llega stream/ready.
+
+Aún reutilizas stream_id
+El hook limpia el stream viejo solo si streamIdRef.current existe, pero luego re-usa la misma variable externa streamId para el nuevo mensaje. D-ID necesita un init-stream nuevo para generar un ID distinto.
+--► Después de enviar delete-stream, espera el init-stream automático o llama a tu función interna que lo emite.
+
+ts
+Copiar
+// idea rápida dentro de sendStreamText:
+if (!streamId) {
+  await requestNewStream();   // llama a init-stream y guarda new streamId
+}
+didAbortController.current.abort() se llama en cada turno
+El check correcto ya está en ConversationalAvatar (3) pero no se ejecuta antes de la línea que crea el nuevo AbortController. Asegúrate de que esté así:
+
+ts
+Copiar
+if (isAvatarTalking && didAbortController.current) {
+  didAbortController.current.abort();
+  didAbortController.current = null;
+}
+const controller = new AbortController();
+didAbortController.current = controller;
+sendStreamText(response, controller);
+Pasos mínimos para reparar
+Archivo	Acción
+useWebRTC.ts	• Borrar bloque pauseMessage completo.
+• Eliminar setIsStreamReady(true) manual en sendStreamText.
+• Tras delete-stream, forzar nuevo init-stream y esperar stream/ready antes de enviar texto.
+ConversationalAvatar.tsx	• Mover el bloque que aborta el clip viejo antes de crear el nuevo controller (si no está).
+
+Cómo probar después
+Chat: envía 5 mensajes seguidos; debes ver stream/started → stream/done cada vez.
+
+Interrumpe durante el tercer mensaje; el cuarto turno debe funcionar igual.
+
+En consola ya no debe aparecer stream-pause ni “Forcing stream ready”.
+
+Aplica estos ajustes y el avatar responderá indefinidamente sin bloquearse tras el segundo turno.
