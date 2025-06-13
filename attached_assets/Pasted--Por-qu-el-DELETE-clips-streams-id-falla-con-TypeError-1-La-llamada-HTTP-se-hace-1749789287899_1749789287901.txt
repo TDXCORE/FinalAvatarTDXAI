@@ -1,0 +1,91 @@
+### ⚠️ Por qué el `DELETE /clips/streams/{id}` falla con `TypeError`
+
+1. **La llamada HTTP se hace desde el navegador**
+   El endpoint REST de D-ID **no envía cabeceras CORS** –el request se bloquea por el propio navegador y genera un `TypeError` genérico (“Failed to fetch”).
+
+   > **Prueba rápida:** abre DevTools → Network → request del DELETE → verás que nunca llega al servidor, se aborta con *CORS error*.
+
+2. **Ruta incorrecta**
+   Tú creas el stream con `/streams` (o con el WebSocket control), pero lo borras en `/clips/streams/…`.
+
+   * Para **Clips/Stream v2** la ruta válida de borrado es **`/streams/{id}`** (sin `/clips`), usando la misma base URL que el POST inicial.
+   * El WebSocket admite además el mensaje JSON
+
+     ```json
+     { "type": "delete-stream", "streamId": "strm_…" }
+     ```
+
+3. **Seguridad**
+   D-ID recomienda que las claves **nunca salgan al front-end**. El DELETE debería hacerse en tu backend (Next API route, FastAPI, etc.) o por WebSocket, no por `fetch` en el cliente.
+
+---
+
+## 🛠️ Corrección mínima
+
+### A. Pásalo por WebSocket (sin CORS, sin exponer API-Key)
+
+```ts
+// justo antes de cerrar tracks
+webSocketRef.current?.send(
+  JSON.stringify({ type: 'delete-stream', streamId: currentStreamIdRef.current })
+);
+```
+
+El backend de D-ID cortará el stream y cerrará el PC; no hace falta un segundo DELETE.
+
+### B. Si prefieres HTTP ➜ llámalo desde tu backend
+
+1. **/api/deleteStream.ts** (Next.js App Router)
+
+```ts
+export async function POST(req: Request) {
+  const { id } = await req.json();
+  const res = await fetch(`https://api.d-id.com/streams/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${process.env.DID_API_KEY}` }
+  });
+  return new Response(res.body, { status: res.status });
+}
+```
+
+2. **En el front**
+
+```ts
+await fetch('/api/deleteStream', { 
+  method: 'POST', 
+  body: JSON.stringify({ id: currentStreamIdRef.current }) 
+});
+```
+
+### C. Asegúrate de usar **la misma base URL** que en el POST
+
+Si tu creación es:
+
+```
+POST https://api.d-id.com/streams
+```
+
+El borrado debe ser:
+
+```
+DELETE https://api.d-id.com/streams/{id}
+```
+
+Sin `/clips` a menos que también hayas creado en `/clips/streams`.
+
+---
+
+## 🚦 Flujo final (sin timeouts artificiales)
+
+```
+INTERRUPT
+   ↳ webSocket.send({delete-stream})
+   ↳ stop tracks + pc.close()    (en cuanto recibas stream/error o cierre RTC)
+   ↳ setState('empty')
+   ↳ flush pendingMsg            (nuevo stream)
+```
+
+* **Sin `waitForRealDone()`**: el control WebSocket o el cierre RTC es tu confirmación.
+* **Sin reconexión** salvo que el WebSocket se cierre inesperadamente.
+
+Con esto desaparecen los `TypeError`, el estado “needs-reconnect” y la cola pendiente se reproduce al instante.

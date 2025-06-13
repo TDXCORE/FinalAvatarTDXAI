@@ -422,29 +422,7 @@ export function useWebRTC() {
 
 
 
-  // HTTP-based stream cancellation - no WebSocket event waiting needed
-  const deleteStreamHTTP = useCallback(async (streamIdToDelete: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`https://api.d-id.com/clips/streams/${streamIdToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${apiConfigRef.current?.key}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        console.log('✅ Stream deleted via HTTP:', response.status);
-        return true;
-      } else {
-        console.warn('❌ DELETE failed:', response.status, response.statusText);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ DELETE request failed:', error);
-      return false;
-    }
-  }, []);
+
 
   // Cleanup WebSocket listeners to prevent memory leaks
   const cleanupWebSocketListeners = useCallback(() => {
@@ -520,40 +498,35 @@ export function useWebRTC() {
     setStreamingState('empty'); // Set to empty after stopping tracks
     
     try {
-      // HTTP DELETE to D-ID API instead of WebSocket message
-      const deleteSuccess = await deleteStreamHTTP(streamId);
-      
-      if (deleteSuccess) {
-        // Grace period for SRTP cleanup
-        await new Promise(resolve => setTimeout(resolve, 120));
-        console.log('✅ Stream deletion confirmed via HTTP');
-        setStreamEvent('cancelled');
-      } else {
-        // DELETE failed, need to reconnect
-        console.warn('❌ DELETE failed, marking for reconnection');
-        
-        // Close WebSocket to force reconnection
-        if (webSocketRef.current) {
-          cleanupWebSocketListeners();
-          webSocketRef.current.close();
-          webSocketRef.current = null;
-        }
-        
-        setTimeout(() => {
-          setStreamEvent('needs-reconnect');
-        }, 500);
+      // Send WebSocket delete-stream message to D-ID
+      if (webSocketRef.current?.readyState === WebSocket.OPEN) {
+        webSocketRef.current.send(JSON.stringify({ 
+          type: 'delete-stream', 
+          streamId: streamId 
+        }));
+        console.log('🗑️ WebSocket delete-stream message sent');
       }
+      
+      // Grace period for SRTP cleanup
+      await new Promise(resolve => setTimeout(resolve, 120));
+      console.log('✅ Stream deletion grace period complete');
       
       // Clear any pending resolvers
       pendingDoneResolvers.current = [];
+      setStreamEvent('cancelled');
       
     } catch (error) {
-      console.error('Error during HTTP DELETE:', error);
-      setStreamEvent('needs-reconnect');
+      console.error('Error during WebSocket delete:', error);
     } finally {
+      // Reset state immediately - no reconnection needed
+      setStreamId(null);
+      setSessionId(null);
+      setStreamingState('empty');
       cancellingRef.current = false;
+      
+      console.log('🔄 Stream cancellation complete, ready for new messages');
     }
-  }, [streamId, sessionId, deleteStreamHTTP, cleanupWebSocketListeners]);
+  }, [streamId, sessionId]);
 
   return {
     connect,
