@@ -79,18 +79,15 @@ export default function ConversationalAvatar() {
     // 1. Abort current LLM request immediately
     abortCurrentRequest();
     
-    // 2. Clear video immediately
-    clearCurrentVideo();
-    
-    // 3. Cancel current D-ID stream and wait for tracks to stop
+    // 2. Cancel current D-ID stream and wait for tracks to stop
     await cancelCurrentStream();
     
-    // 4. Reset latency tracking
+    // 3. Reset latency tracking
     setLatency(null);
     setLatencyStart(null);
     
     // Note: Removed confusing system message for cleaner UX
-  }, [abortCurrentRequest, clearCurrentVideo, cancelCurrentStream, streamId, cancellingRef]);
+  }, [abortCurrentRequest, cancelCurrentStream, streamId, cancellingRef]);
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({

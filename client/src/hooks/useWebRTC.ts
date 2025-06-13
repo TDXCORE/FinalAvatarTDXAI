@@ -248,12 +248,12 @@ export function useWebRTC() {
     console.log('[CLEAR-VIDEO] Attempting cleanup during interruption');
     
     if (currentRemoteStream.current && videoRef.current) {
-      console.log('[CLEAR-VIDEO] Stopping all media tracks permanently');
+      console.log('[CLEAR-VIDEO] Removing all media tracks from stream');
       
-      // Detener TODAS las pistas (video Y audio) del stream actual
+      // Remover TODAS las pistas (video Y audio) del stream actual sin matarlas
       currentRemoteStream.current.getTracks().forEach(track => {
-        track.stop();
-        console.log('[CLEAR-VIDEO] Track stopped:', track.kind, track.id);
+        currentRemoteStream.current!.removeTrack(track);
+        console.log('[CLEAR-VIDEO] Track removed:', track.kind, track.id);
       });
       
       // Limpiar el elemento video

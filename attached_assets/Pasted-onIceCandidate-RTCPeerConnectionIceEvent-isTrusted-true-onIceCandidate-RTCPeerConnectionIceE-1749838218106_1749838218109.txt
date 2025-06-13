@@ -1,0 +1,54 @@
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+onIceCandidate 
+RTCPeerConnectionIceEvent {isTrusted: true}
+SDP message received from D-ID
+[streamingState] empty isBotSpeaking: false
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(2)}
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-3cecabf9-7087-46ff-be79-2509c903fd88", object: "chat.completion", created: 1749838159, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: Parece que quieres escuchar una historia larga. ¿Te gustaría que te cuente una de aventuras, romance o ciencia ficción?
+Text message sent to D-ID
+chat/partial
+[STREAM-started] state updated to: streaming
+stream/started
+stream/ready
+chat/answer
+forcing stream/ready
+[streamingState] streaming isBotSpeaking: true
+🚨 Manual interrupt detected while bot speaking
+[INT-check] streamId: strm_uIMQ_oZqVYOnRBL1_xNfa$v2_pion_EKS cancellingRef: false
+🚨 Handling user interrupt
+[CLEAR-VIDEO] Attempting cleanup during interruption
+[CLEAR-VIDEO] Stopping all media tracks permanently
+[CLEAR-VIDEO] Track stopped: audio audio
+[CLEAR-VIDEO] Track stopped: video video
+[CLEAR-VIDEO] Video element cleared completely
+🗑️ Cancelling current D-ID stream
+[CLEAR-VIDEO] Attempting cleanup during interruption
+🗑️ WebSocket delete-stream message sent
+✅ Stream deletion grace period complete
+🎬 Video paused after grace period to prevent resume
+🔄 Stream cancellation complete, RTCPeerConnection maintained
+[CANCEL-finally] cancellingRef.current: false state: cancelling streamId preserved: strm_uIMQ_oZqVYOnRBL1_xNfa$v2_pion_EKS
+Groq LLM Request: 
+Object {model: "llama-3.3-70b-versatile", messages: Array(4)}
+🔄 Stream state updated to empty via stream/done
+stream/done
+Groq LLM Response status: 200
+Groq LLM Response data: 
+Object {id: "chatcmpl-b5ed430d-2119-4539-a65f-b90a188511b5", object: "chat.completion", created: 1749838169, model: "llama-3.3-70b-versatile", choices: Array(1), …}
+Sending text to D-ID avatar: La historia comienza en un pequeño pueblo costero, donde una joven llamada Sofía vivía con su familia. Sofía siempre se sintió atraída por el mar y pasaba horas explorando las playas y los acantilados, soñando con el día en que podría descubrir un tesoro escondido. Un día, mientras paseaba por la playa, encontró un viejo mapa que parecía indicar la ubicación de un tesoro legendario. ¿Quieres que siga contando?
+Text message sent to D-ID
+[STREAM-started] state updated to: streaming
+stream/started
+chat/partial
+chat/answer
+🔄 Stream state updated to empty via stream/done
+stream/done
