@@ -69,7 +69,7 @@ export default function ConversationalAvatar() {
 
   // Interrupt handler
   const handleInterrupt = useCallback(async () => {
-    if (streamingState !== 'streaming') return;
+    if (streamingState !== 'streaming' || cancellingRef.current) return;
     
     console.log('🚨 Handling user interrupt');
     
@@ -84,7 +84,7 @@ export default function ConversationalAvatar() {
     setLatencyStart(null);
     
     // Note: Removed confusing system message for cleaner UX
-  }, [abortCurrentRequest, cancelCurrentStream, streamingState]);
+  }, [abortCurrentRequest, cancelCurrentStream, streamingState, cancellingRef]);
 
   // Voice Activity Detection for automatic conversation flow
   const { startVAD, stopVAD } = useVoiceActivityDetection({
