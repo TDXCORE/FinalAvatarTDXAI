@@ -339,6 +339,7 @@ export function useWebRTC() {
       // Handle WebSocket messages
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+        console.log('📨 D-ID WebSocket message received:', data.messageType, data);
         
         switch (data.messageType) {
           case 'init-stream':
@@ -489,8 +490,9 @@ export function useWebRTC() {
         type: 'init-stream',
         payload: {
           session_id: sessionId,
-          driver_url: 'bank://lively',
-          voice_id: 'ucWwAruuGtBeHfnAaKcJ'
+          presenter_id: 'v2_public_alex@qcvo4gupoy',
+          driver_id: 'e3nbserss8',
+          presenter_type: 'clip'
         }
       };
       sendMessage(webSocketRef.current, initStreamMessage);
