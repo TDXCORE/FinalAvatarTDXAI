@@ -1,0 +1,68 @@
+Qué ya arreglaste
+delete-stream se envía antes de cada turno.
+
+init-stream se manda después, ahora con session_id (bien).
+
+🔍 Qué queda por confirmar (y cómo)
+Paso	Comprueba en la consola	Si falta…	Solución puntual
+1. init-stream lleva todo el payload	Deberías ver algo así:
+{ session_id:"...", driver_url:"bank://lively", voice_id:"<eleven>" }	Falta driver_url o voice_id	Añádelos al objeto buildInitStreamPayload()
+2. D-ID devuelve stream/ready	Línea:
+stream/ready streamId:"strm_xxx"	No aparece	① Confirma que el payload es correcto (paso 1).
+② Amplía el timeout de waitForReady() a 6000 ms.
+3. Handler guarda el nuevo streamId	En stream/ready tu log debe mostrar:
+streamIdRef.current = strm_xxx	Si no se guarda	Dentro de onmessage, añade:
+streamIdRef.current = msg.streamId;
+4. stream-text usa ese streamId	Deberías ver:
+stream_id:"strm_xxx" justo después de stream/ready	Usa null	Pásale streamIdRef.current al payload de stream-text.
+
+Recuerda: D-ID exige que cada init-stream incluya los mismos campos que la primera vez; si falta uno, descarta el mensaje en silencio.
+
+Fragmentos definitivos
+ts
+Copiar
+/* helper completo */
+function buildInitStreamPayload() {
+  return {
+    session_id : sessionIdRef.current!,          // obligatorio
+    driver_url : config.driverUrl,               // p.ej. "bank://lively"
+    voice_id   : config.voiceId                  // tu voz ElevenLabs
+  };
+}
+
+/* onmessage */
+if (msg.type === 'stream/ready') {
+  streamIdRef.current   = msg.streamId;          // ← guarda
+  isStreamReady.current = true;
+  return;
+}
+
+/* stream-text payload */
+wsRef.current!.send(JSON.stringify({
+  type: 'stream-text',
+  payload: {
+    session_id: sessionIdRef.current,
+    stream_id : streamIdRef.current,             // usa el nuevo id
+    text,
+    numResults: 1
+  }
+}));
+🧪 Checklist final
+Turno 1
+init-stream → stream/ready (id A) → stream-text → stream/started/done
+
+Turno 2
+delete-stream id A → init-stream → stream/ready (id B) → …
+
+Turnos 3+ repiten igual, cada uno con un streamId distinto.
+
+Sin “Timeout waiting for stream ready” ni “forcing stream ready”.
+
+Aplica el payload completo, verifica que stream/ready llegue y que guardes el nuevo streamId. Con eso el avatar responderá todos los mensajes sin bloquearse.
+
+
+
+
+
+
+

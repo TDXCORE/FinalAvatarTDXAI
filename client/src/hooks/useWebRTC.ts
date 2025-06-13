@@ -9,7 +9,7 @@ export async function ensureSocketOpen(webSocketRef: React.MutableRefObject<WebS
 }
 
 // Wait for stream ready state
-async function waitForReady(isStreamReadyRef: React.MutableRefObject<boolean>, timeout = 4000): Promise<boolean> {
+async function waitForReady(isStreamReadyRef: React.MutableRefObject<boolean>, timeout = 6000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const check = () => {
@@ -216,6 +216,7 @@ export function useWebRTC() {
 
       if (status === 'ready') {
         console.log('stream/ready');
+        // Don't update streamId here - it should come from WebSocket init-stream response
         isStreamReadyRef.current = true;
         setIsStreamReady(true);
         setStreamEvent('ready');
@@ -379,7 +380,10 @@ export function useWebRTC() {
             
           case 'stream/ready':
             console.log('Stream ready event received from WebSocket');
-            streamIdRef.current = data.streamId || streamId;
+            if (data.streamId) {
+              streamIdRef.current = data.streamId;
+              setStreamId(data.streamId);
+            }
             isStreamReadyRef.current = true;
             setIsStreamReady(true);
             break;
@@ -548,7 +552,7 @@ export function useWebRTC() {
           color: '#FFFFFF'
         },
         session_id: sessionId,
-        stream_id: streamId,
+        stream_id: streamIdRef.current,
         presenter_type: 'clip'
       }
     };
